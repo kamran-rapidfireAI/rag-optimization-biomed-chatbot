@@ -176,10 +176,6 @@ This project uses **PubMed** in two different ways:
 
 ## 4) Functional requirements
 
----
-
-## 4) Functional requirements
-
 ### R1. Data loaders
 
 - **BioASQ loader**
@@ -248,10 +244,10 @@ Create `data/raw/manifest.json` that records exactly what went into the corpus, 
   - distractor sampling rule (how many, from where)
   - any language/abstract-present filters
 - counts:
-  - \#PMIDs (gold)
-  - \#PMIDs (distractors)
-  - \#records materialized
-  - \#chunks produced
+  - #PMIDs (gold)
+  - #PMIDs (distractors)
+  - #records materialized
+  - #chunks produced
 - integrity:
   - checksum (e.g., SHA256) of final `corpus.jsonl`
   - checksum of final `chunks.jsonl`
@@ -338,7 +334,7 @@ Sweepable parameters:
 - Prompt templates must be configurable and versioned.
 - Requirements:
   - Answer must be grounded in provided evidence
-  - Include citations (PMID + chunk\_id)
+  - Include citations (PMID + chunk_id)
   - Refuse/abstain when evidence is insufficient
   - Output a normalized schema (see below)
 
@@ -393,9 +389,9 @@ Suggested output schema:
 
 **Retrieval metrics**
 
-- Recall\@k (must)
+- Recall@k (must)
 - MRR (must)
-- Optional: Precision\@k, MAP
+- Optional: Precision@k, MAP
 
 **Answer metrics**
 
@@ -564,7 +560,7 @@ biorag-bench/
 
 CI fails if (relative to baseline JSON committed in repo):
 
-- BioASQ Recall\@10 drops by > 1.0 point
+- BioASQ Recall@10 drops by > 1.0 point
 - BioASQ MRR drops by > 0.5 point
 - BioASQ exact-answer F1 drops by > 1.0 point
 - PubMedQA accuracy drops by > 1.0 point
@@ -605,7 +601,7 @@ CI fails if (relative to baseline JSON committed in repo):
 - Chunk + embed + FAISS index
 - Basic retrieval + OpenAI generation + citations
 - Implement evaluation for:
-  - BioASQ retrieval (Recall\@k, MRR)
+  - BioASQ retrieval (Recall@k, MRR)
   - BioASQ answers (EM/F1/ROUGE-L)
   - PubMedQA label accuracy
 
