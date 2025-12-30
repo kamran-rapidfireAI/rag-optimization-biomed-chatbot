@@ -4,7 +4,7 @@
 
 ---
 
-## 0) Your chosen constraints (baked into this spec)
+## 0. Your chosen constraints (baked into this spec)
 
 - **LLM:** Hosted API (**OpenAI**) for generation (and optionally embeddings).
 - **Indexing:** **FAISS only** (keep infra simple; no OpenSearch/Elastic).
@@ -19,7 +19,7 @@
 
 ---
 
-## 1) Goals
+## 1. Goals
 
 ### Primary goals
 
@@ -45,7 +45,7 @@
 
 ---
 
-## 2) Tech stack (recommended)
+## 2. Tech stack (recommended)
 
 ### Python + core libs
 
@@ -86,19 +86,19 @@ This is an **evidence-grounded biomedical literature QA chatbot** (a “PubMed l
 
 ### Best-fit question types (aligned with BioASQ + PubMedQA)
 
-1) **Yes/No/Maybe questions** (strong fit; easy to score)
+1. **Yes/No/Maybe questions** (strong fit; easy to score)
 - *Example:* “Does metformin reduce cancer risk in patients with diabetes?”
 - *Example:* “Is vitamin D supplementation associated with reduced fracture risk in older adults?”
 
-2) **Factoid questions** (short, specific answers)
+2. **Factoid questions** (short, specific answers)
 - *Example:* “Which gene is mutated in Huntington’s disease?”
 - *Example:* “What receptor does naloxone primarily antagonize?”
 
-3) **List questions** (return a set of items with citations)
+3. **List questions** (return a set of items with citations)
 - *Example:* “What are common adverse effects of amiodarone?”
 - *Example:* “Which drugs are ACE inhibitors?”
 
-4) **Summary / synthesis questions** (best for showing RAG value + citations)
+4. **Summary / synthesis questions** (best for showing RAG value + citations)
 - *Example:* “Summarize evidence on SGLT2 inhibitors and heart failure outcomes.”
 - *Example:* “What does the literature say about ketogenic diets and epilepsy control?”
 
@@ -112,7 +112,7 @@ This is an **evidence-grounded biomedical literature QA chatbot** (a “PubMed l
 
 ---
 
-## 3) Datasets and “golden tests”
+## 3. Datasets and "golden tests"
 
 ### 3.1 BioASQ Task B (required)
 
@@ -174,7 +174,7 @@ This project uses **PubMed** in two different ways:
 
 ---
 
-## 4) Functional requirements
+## 4. Functional requirements
 
 ### R1. Data loaders
 
@@ -451,7 +451,7 @@ Optional (nice-to-have):
 
 ---
 
-## 5) Non-functional requirements
+## 5. Non-functional requirements
 
 ### N1. Reproducibility
 
@@ -497,7 +497,7 @@ Optional (nice-to-have):
 
 ---
 
-## 6) Architecture (LangChain-first)
+## 6. Architecture (LangChain-first)
 
 ### High-level flow
 
@@ -547,7 +547,7 @@ biorag-bench/
 
 ---
 
-## 7) “Golden suite” and CI regression gates
+## 7. "Golden suite" and CI regression gates
 
 ### Golden suite
 
@@ -569,7 +569,7 @@ CI fails if (relative to baseline JSON committed in repo):
 
 ---
 
-## 8) Deliverables (what you will ship)
+## 8. Deliverables (what you will ship)
 
 ### Required
 
@@ -592,7 +592,7 @@ CI fails if (relative to baseline JSON committed in repo):
 
 ---
 
-## 9) Milestones (2–4 week plan)
+## 9. Milestones (2–4 week plan)
 
 ### Week 1 — Baseline system + eval
 
@@ -626,7 +626,7 @@ CI fails if (relative to baseline JSON committed in repo):
 
 ---
 
-## 10) Config design (example)
+## 10. Config design (example)
 
 `configs/base.yaml` (illustrative)
 
@@ -664,7 +664,7 @@ prompt:
 
 ---
 
-## 11) Notes on GPU usage
+## 11. Notes on GPU usage
 
 Your GPU is most valuable for:
 
