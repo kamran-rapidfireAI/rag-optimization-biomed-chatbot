@@ -76,7 +76,7 @@
   - Option A: OpenAI embeddings (fast to start, consistent)
   - Option B: local embedding model (optional stretch; can reduce cost)
 
-> Keep embeddings choice pluggable.
+> Keep the embeddings choice pluggable.
 
 ---
 
@@ -116,7 +116,7 @@ This is an **evidence-grounded biomedical literature QA chatbot** (a “PubMed l
 
 ### 3.1 BioASQ Task B (required)
 
-Per question you get:
+Per question, you get:
 
 - gold relevant **documents** (PMIDs) and/or **snippets**
 - gold answers:
@@ -127,7 +127,7 @@ These labels power both retrieval and generation evaluation.
 
 ### 3.2 PubMedQA (required)
 
-Per sample you get:
+Per sample, you get:
 
 - question (usually yes/no/maybe style)
 - label: **yes/no/maybe**
@@ -290,7 +290,7 @@ Implement chunking as a pluggable component with configurations:
 - Persist:
   - FAISS index file
   - chunk metadata store (e.g., SQLite / Parquet / JSONL)
-- Support rebuilding index deterministically from corpus + config.
+- Support rebuilding the index deterministically from the corpus + config.
 
 ### R6. Retrieval (optimization target)
 
@@ -461,7 +461,7 @@ Optional (nice-to-have):
   - model names (LLM + embeddings + reranker)
   - dataset versions
   - random seeds
-- Deterministic chunking when given same input + config.
+- Deterministic chunking when given the same input + config.
 
 ### N2. Performance & iteration speed
 
@@ -494,8 +494,8 @@ Optional (nice-to-have):
 
 ### N5. Safety
 
-- Prominent disclaimer: educational use only, not medical advice
-- Evidence-first output with citations; abstain when uncertain.
+- Prominent disclaimer: for educational use only, not medical advice.
+- Provide evidence-first output with citations; abstain when uncertain.
 
 ---
 
@@ -509,7 +509,7 @@ Optional (nice-to-have):
 4. Index in FAISS (+ metadata store)
 5. For each question:
    - retrieve chunks (similarity/MMR/threshold)
-   - optional rerank top-N
+   - optionally rerank top-N
    - build prompt with top evidence
    - call OpenAI LLM
    - parse and normalize output
