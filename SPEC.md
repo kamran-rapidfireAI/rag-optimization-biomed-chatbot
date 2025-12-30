@@ -76,7 +76,7 @@
   - Option A: OpenAI embeddings (fast to start, consistent)
   - Option B: local embedding model (optional stretch; can reduce cost)
 
-> Keep embeddings choice pluggable;
+> Keep embeddings choice pluggable.
 
 ---
 
@@ -87,20 +87,20 @@ This is an **evidence-grounded biomedical literature QA chatbot** (a “PubMed l
 ### Best-fit question types (aligned with BioASQ + PubMedQA)
 
 1. **Yes/No/Maybe questions** (strong fit; easy to score)
-- *Example:* “Does metformin reduce cancer risk in patients with diabetes?”
-- *Example:* “Is vitamin D supplementation associated with reduced fracture risk in older adults?”
+   - *Example:* "Does metformin reduce cancer risk in patients with diabetes?"
+   - *Example:* "Is vitamin D supplementation associated with reduced fracture risk in older adults?"
 
 2. **Factoid questions** (short, specific answers)
-- *Example:* “Which gene is mutated in Huntington’s disease?”
-- *Example:* “What receptor does naloxone primarily antagonize?”
+   - *Example:* "Which gene is mutated in Huntington's disease?"
+   - *Example:* "What receptor does naloxone primarily antagonize?"
 
 3. **List questions** (return a set of items with citations)
-- *Example:* “What are common adverse effects of amiodarone?”
-- *Example:* “Which drugs are ACE inhibitors?”
+   - *Example:* "What are common adverse effects of amiodarone?"
+   - *Example:* "Which drugs are ACE inhibitors?"
 
 4. **Summary / synthesis questions** (best for showing RAG value + citations)
-- *Example:* “Summarize evidence on SGLT2 inhibitors and heart failure outcomes.”
-- *Example:* “What does the literature say about ketogenic diets and epilepsy control?”
+   - *Example:* "Summarize evidence on SGLT2 inhibitors and heart failure outcomes."
+   - *Example:* "What does the literature say about ketogenic diets and epilepsy control?"
 
 ### Out-of-scope queries (must refuse / reframe)
 
@@ -475,7 +475,9 @@ Optional (nice-to-have):
   - model name
   - prompt template version
   - full rendered prompt (including evidence)
-  - decoding params (temperature, max tokens) This prevents re-paying for identical evaluations during sweeps.
+  - decoding params (temperature, max tokens)
+  
+  This prevents re-paying for identical evaluations during sweeps.
 - **Per-run budget guardrails (required):** enforce configurable caps:
   - `max_questions` (hard limit on examples evaluated)
   - `max_total_tokens` (input + output)
