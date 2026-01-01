@@ -216,19 +216,11 @@ Build a corpus of texts to retrieve from.
 
 #### FR-2.1 Source of abstracts
 
-**Option A — Hugging Face (selected for this project)**
+Use a **Hugging Face dataset** that contains PubMed abstracts:
 
-- Use a Hugging Face dataset that contains PubMed abstracts at scale.
 - Pin the **exact dataset revision** (commit hash) so the corpus is reproducible.
 - Sample a **distractor set** from the same dataset using a fixed random seed.
 - **Important practical note:** the popular `ncbi/pubmed` dataset represents the full PubMed baseline and is **very large** (tens of millions of records). For a 2–4 week project, prefer a smaller HF PubMed corpus.
-
-**Option B — NCBI E-utilities (alternative)**
-
-- Build a PMID list (all BioASQ gold PMIDs + all PubMedQA PMIDs + distractor PMIDs).
-- Fetch abstracts via NCBI E-utilities with on-disk caching, retries, and rate limiting.
-
-> **Decision:** This project uses **Option A (Hugging Face)**.
 
 #### FR-2.2 Caching and reproducible downloads
 
