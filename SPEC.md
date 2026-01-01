@@ -588,32 +588,168 @@ Run sweeps locally on the development machine using RapidFire AI.
 
 ```
 biorag-bench/
+├── .gitignore
+├── .env.example                      # Document required env vars (OPENAI_API_KEY)
 ├── README.md
 ├── pyproject.toml
+├── Makefile                          # Common dev commands
+│
 ├── configs/
-│   ├── base.yaml
+│   ├── base.yaml                     # Default configuration
 │   ├── prompts/
+│   │   ├── cite_and_abstain_v1.txt
+│   │   └── cite_and_abstain_v2.txt
 │   └── sweeps/
+│       ├── chunking_sweep.yaml
+│       ├── retriever_sweep.yaml
+│       └── full_sweep.yaml
+│
 ├── data/
 │   ├── raw/
-│   └── processed/
-├── runs/                 # run outputs (metrics + artifacts)
+│   │   ├── manifest.json             # Dataset provenance (FR-2.3)
+│   │   ├── bioasq/
+│   │   └── pubmedqa/
+│   ├── processed/
+│   │   ├── corpus/
+│   │   │   ├── corpus.jsonl
+│   │   │   └── chunks.jsonl
+│   │   ├── pmids_gold.txt
+│   │   ├── pmids_distractors.txt
+│   │   └── embeddings/               # Cached embeddings (FR-4)
+│   └── golden/
+│       ├── bioasq_golden_200.jsonl   # Stable eval subset (2.4)
+│       └── pubmedqa_golden_500.jsonl
+│
+├── runs/                             # Experiment outputs (gitignored except leaderboard)
+│   ├── .gitkeep
+│   └── leaderboard.csv               # Top configs comparison
+│
 ├── src/
 │   └── biorag/
-│       ├── data/
-│       ├── chunking/
-│       ├── embeddings/
-│       ├── index/
-│       ├── retrieve/
-│       ├── rerank/
-│       ├── generate/
-│       ├── eval/
-│       ├── experiments/
-│       ├── api/
+│       ├── __init__.py
+│       ├── py.typed                  # PEP 561 marker for mypy
+│       │
+│       ├── cli/                      # FR-11: CLI commands
+│       │   ├── __init__.py
+│       │   └── main.py               # Typer app: ingest, build_corpus, index, eval, sweep, serve
+│       │
+│       ├── schemas/                  # Pydantic models (FR-8.1)
+│       │   ├── __init__.py
+│       │   ├── config.py             # Config schema (chunking, retrieval, rerank, etc.)
+│       │   ├── corpus.py             # CorpusDocument, Chunk
+│       │   ├── evaluation.py         # EvalResult, RunMetrics
+│       │   └── generation.py         # AnswerOutput (question_id, answer, citations, etc.)
+│       │
+│       ├── data/                     # FR-1, FR-2: Data loading
+│       │   ├── __init__.py
+│       │   ├── bioasq_loader.py
+│       │   ├── pubmedqa_loader.py
+│       │   └── corpus_builder.py     # FR-2: PubMed abstracts corpus
+│       │
+│       ├── chunking/                 # FR-3: Chunking strategies
+│       │   ├── __init__.py
+│       │   ├── base.py               # Abstract chunker interface
+│       │   ├── recursive.py          # Sentence-aware splitter
+│       │   └── token.py              # Token/character splitter (baseline)
+│       │
+│       ├── embeddings/               # FR-4: Embedding interface
+│       │   ├── __init__.py
+│       │   ├── base.py               # Abstract embedder interface
+│       │   ├── openai.py             # OpenAI embeddings
+│       │   ├── local.py              # Optional: local HF embeddings
+│       │   └── cache.py              # Embedding cache (keyed by model + chunk hash)
+│       │
+│       ├── indexing/                 # FR-5: FAISS vector store
+│       │   ├── __init__.py
+│       │   ├── faiss_store.py        # FAISS index wrapper
+│       │   └── metadata_store.py     # Chunk metadata (SQLite/Parquet)
+│       │
+│       ├── retrieve/                 # FR-6: Retrieval
+│       │   ├── __init__.py
+│       │   └── retriever.py          # similarity, mmr, threshold modes
+│       │
+│       ├── rerank/                   # FR-7: Reranking
+│       │   ├── __init__.py
+│       │   ├── base.py               # Abstract reranker interface
+│       │   ├── cross_encoder.py      # HF cross-encoder (GPU)
+│       │   └── llm_reranker.py       # Optional: OpenAI-based reranker
+│       │
+│       ├── generate/                 # FR-8: Prompting & generation
+│       │   ├── __init__.py
+│       │   ├── prompts.py            # Prompt template loader
+│       │   ├── generator.py          # LLM generation with structured output
+│       │   └── abstention.py         # Abstain/refusal logic (FR-8.3)
+│       │
+│       ├── eval/                     # FR-9: Evaluation harness
+│       │   ├── __init__.py
+│       │   ├── metrics.py            # Recall@k, MRR, EM, F1, ROUGE-L, etc.
+│       │   ├── bioasq_eval.py        # BioASQ-specific scoring
+│       │   ├── pubmedqa_eval.py      # PubMedQA label accuracy
+│       │   └── harness.py            # Unified evaluation runner
+│       │
+│       ├── experiments/              # FR-10: Experiment runner
+│       │   ├── __init__.py
+│       │   ├── runner.py             # Single run executor
+│       │   ├── sweep.py              # RapidFire AI sweep integration
+│       │   └── artifacts.py          # Run artifact management (run.json, etc.)
+│       │
+│       ├── api/                      # FR-11: FastAPI endpoints
+│       │   ├── __init__.py
+│       │   ├── app.py                # FastAPI app factory
+│       │   ├── routes.py             # /answer, /retrieve, /health
+│       │   └── dependencies.py       # Pipeline injection
+│       │
+│       ├── pipeline/                 # End-to-end RAG pipeline orchestration
+│       │   ├── __init__.py
+│       │   └── rag.py                # RAGPipeline class (retrieve → rerank → generate)
+│       │
 │       └── utils/
+│           ├── __init__.py
+│           ├── caching.py            # LLM output cache (NFR-3)
+│           ├── cost.py               # Token counting, budget guardrails
+│           └── logging.py            # Structured logging
+│
 ├── tests/
-└── demo/                 # Gradio demo app for HuggingFace Spaces
+│   ├── __init__.py
+│   ├── conftest.py                   # Shared fixtures
+│   ├── unit/
+│   │   ├── test_chunking.py
+│   │   ├── test_metrics.py
+│   │   ├── test_schemas.py
+│   │   └── test_config.py
+│   └── integration/
+│       ├── test_retrieval.py
+│       └── test_pipeline.py
+│
+├── demo/                             # Gradio app for HuggingFace Spaces
+│   ├── app.py                        # Main Gradio interface
+│   ├── requirements.txt              # Minimal deps for Spaces
+│   └── README.md                     # Spaces-specific instructions
+│
+├── scripts/                          # One-off utility scripts
+│   ├── download_datasets.py          # Initial data download
+│   └── validate_golden_suite.py      # Sanity check golden files
+│
+└── notebooks/                        # Optional: exploration & analysis
+    ├── 01_data_exploration.ipynb
+    └── 02_failure_analysis.ipynb
 ```
+
+#### Key design decisions
+
+| Addition | Rationale |
+|----------|-----------|
+| **`cli/`** | FR-11 defines 7 CLI commands — they need a dedicated module |
+| **`schemas/`** | FR-8.1 requires strict Pydantic models for LLM outputs; centralizes all data contracts |
+| **`pipeline/`** | Clean orchestration layer that composes retrieve → rerank → generate |
+| **`indexing/`** | Renamed from `index/` for clarity; avoids confusion with Python's index concept |
+| **`data/golden/`** | Explicit location for the stable evaluation subset (Section 2.4) |
+| **`py.typed`** | PEP 561 compliance for mypy (listed in tech stack) |
+| **`.env.example`** | Documents `OPENAI_API_KEY` requirement (NFR-3) |
+| **`Makefile`** | Convenient shortcuts: `make test`, `make lint`, `make eval`, etc. |
+| **`scripts/`** | One-off tasks that don't fit in the main package |
+| **`notebooks/`** | Useful for failure analysis deliverable (Section 6.2) |
+| **`tests/unit/` + `tests/integration/`** | Better test organization as project grows |
 
 ### 5.4 Config Design
 
