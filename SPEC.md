@@ -1,353 +1,362 @@
-# Project: BioRAG Bench (LangChain Edition) — Evidence-Grounded Biomedical QA with Golden Tests (BioASQ + PubMedQA)
+# BioRAG Bench — Requirements Specification
 
-> **Elevator pitch:** Build a modular biomedical Retrieval-Augmented Generation (RAG) pipeline using **LangChain components** (FAISS vector store, configurable chunking, retriever settings, optional reranking, prompt variants) and evaluate it with **true golden tests** from **BioASQ Task B** and **PubMedQA** — **no manual labeling required**.
-
----
-
-## 0. Your chosen constraints (baked into this spec)
-
-- **LLM:** Hosted API (**OpenAI**) for generation (and optionally embeddings).
-- **Indexing:** **FAISS only** (keep infra simple; no OpenSearch/Elastic).
-- **Timeline:** **2–4 weeks** (portfolio-quality, not “research project”).
-- **Hardware:** You have a **GPU** (useful for local rerankers / cross-encoders).
-- **Focus:** **Optimization** via systematic sweeps:
-  - chunking strategy + parameters
-  - retriever parameters (k, search type, MMR, score thresholds)
-  - reranker parameters/models
-  - prompt templates / citation formats / refusal policy
-- **Benchmarks:** **BioASQ + PubMedQA**.
+> **Elevator pitch:** Build a modular biomedical Retrieval-Augmented Generation (RAG) pipeline using **LangChain components** (FAISS vector store, configurable chunking, retriever settings, reranking, prompt variants) and evaluate it with **true golden tests** from **BioASQ Task B** and **PubMedQA** — **no manual labeling required**.
 
 ---
 
-## 1. Goals
+## Table of Contents
 
-### Primary goals
+1. [Overview](#1-overview)
+   - 1.1 [Constraints](#11-constraints)
+   - 1.2 [Goals](#12-goals)
+   - 1.3 [Scope (Question Types)](#13-scope-question-types)
+2. [Data](#2-data)
+   - 2.1 [BioASQ Task B](#21-bioasq-task-b)
+   - 2.2 [PubMedQA](#22-pubmedqa)
+   - 2.3 [Dataset Sources](#23-dataset-sources)
+   - 2.4 [Golden Suite](#24-golden-suite)
+3. [Functional Requirements](#3-functional-requirements)
+   - 3.1 [FR-1] Data Loaders
+   - 3.2 [FR-2] Corpus Builder
+   - 3.3 [FR-3] Chunking
+   - 3.4 [FR-4] Embedding
+   - 3.5 [FR-5] Vector Store (FAISS)
+   - 3.6 [FR-6] Retrieval
+   - 3.7 [FR-7] Reranking
+   - 3.8 [FR-8] Prompting & Generation
+   - 3.9 [FR-9] Evaluation Harness
+   - 3.10 [FR-10] Experiment Runner (RapidFire AI)
+   - 3.11 [FR-11] API + CLI
+4. [Non-Functional Requirements](#4-non-functional-requirements)
+   - 4.1 [NFR-1] Reproducibility
+   - 4.2 [NFR-2] Performance
+   - 4.3 [NFR-3] Cost Control
+   - 4.4 [NFR-4] Maintainability
+   - 4.5 [NFR-5] Safety
+5. [Technical Design](#5-technical-design)
+   - 5.1 [Tech Stack](#51-tech-stack)
+   - 5.2 [Architecture](#52-architecture)
+   - 5.3 [Repo Layout](#53-repo-layout)
+   - 5.4 [Config Design](#54-config-design)
+   - 5.5 [GPU Usage](#55-gpu-usage)
+6. [Deliverables](#6-deliverables)
+   - 6.1 [Required](#61-required)
+   - 6.2 [Valuable Add-ons](#62-valuable-add-ons)
 
-1. **End-to-end RAG pipeline**: ingest → chunk → embed → index (FAISS) → retrieve → (optional rerank) → generate → cite sources.
+---
+
+## 1. Overview
+
+### 1.1 Constraints
+
+These constraints are baked into this specification:
+
+| Constraint | Decision |
+|------------|----------|
+| **LLM** | Hosted API (OpenAI) for generation and embeddings |
+| **Indexing** | FAISS only (no OpenSearch/Elastic) |
+| **Timeline** | 2–4 weeks (portfolio-quality) |
+| **Hardware** | Single local GPU (for cross-encoder reranking) |
+| **Sweeps** | RapidFire AI for hyperparallelized optimization |
+| **Benchmarks** | BioASQ Task B + PubMedQA |
+| **Demo** | Gradio on HuggingFace Spaces |
+
+**Optimization targets** (swept via RapidFire AI):
+
+- Chunking strategy + parameters
+- Retriever parameters (k, search type, MMR, score thresholds)
+- Reranker parameters/models
+- Prompt templates / citation formats / refusal policy
+
+### 1.2 Goals
+
+#### Primary goals
+
+1. **End-to-end RAG pipeline**: ingest → chunk → embed → index (FAISS) → retrieve → rerank → generate → cite sources.
 2. **Golden tests / automatic evaluation** using public labeled benchmarks:
    - BioASQ: gold relevant docs/snippets + gold answers (exact & ideal)
    - PubMedQA: gold label (yes/no/maybe) and supporting context
 3. **Optimization-first workflow**:
-   - Run parameter sweeps and track metrics + artifacts
-   - CI regression gates on a stable golden subset (e.g., 200 questions)
+   - Run parameter sweeps using RapidFire AI and track metrics + artifacts
+   - Validate against a stable golden subset (e.g., 200 questions)
 
-### Secondary goals
+#### Secondary goals
 
-- Minimal API service for demo (FastAPI)
+- Demo web app (Gradio on HuggingFace Spaces) with side-by-side baseline vs optimized comparison
 - Reproducible experiment tracking (run configs + metrics + artifacts)
-- Fast iteration: caching embeddings, persistent FAISS index, batch evaluation.
+- Fast iteration: caching embeddings, persistent FAISS index, batch evaluation
 
-### Non-goals
+#### Non-goals
 
 - Medical advice
-- State-of-the-art leaderboard chasing (you’re demonstrating engineering + measurement)
-- Operating a large search cluster (kept intentionally simple).
+- State-of-the-art leaderboard chasing (demonstrating engineering + measurement)
+- Operating a large search cluster (kept intentionally simple)
 
----
+### 1.3 Scope (Question Types)
 
-## 2. Tech stack (recommended)
+This is an **evidence-grounded biomedical literature QA chatbot** (a "PubMed literature assistant"), not a general conversational assistant.
 
-### Python + core libs
+#### Best-fit question types (aligned with BioASQ + PubMedQA)
 
-- Python 3.12.x
-- LangChain (plus `langchain-community`, `langchain-openai`)
-- FAISS (`faiss-cpu` or `faiss-gpu`)
-- PyTorch (for GPU rerankers)
-- FastAPI (optional serving)
-- pytest (tests), ruff (lint), mypy (optional typing)
+| Type | Description | Example |
+|------|-------------|---------|
+| **Yes/No/Maybe** | Strong fit; easy to score | "Does metformin reduce cancer risk in patients with diabetes?" |
+| **Factoid** | Short, specific answers | "Which gene is mutated in Huntington's disease?" |
+| **List** | Return a set of items with citations | "What are common adverse effects of amiodarone?" |
+| **Summary** | Best for showing RAG value + citations | "Summarize evidence on SGLT2 inhibitors and heart failure outcomes." |
 
-### Front-end (optional demo web app)
+#### Out-of-scope queries (must refuse / reframe)
 
-- **Next.js (React) + TypeScript**
-- **Tailwind CSS** for styling (optionally `shadcn/ui` components)
-- Calls the FastAPI backend via JSON:
-  - `POST /answer`
-  - `POST /retrieve`
-- UI focuses on debug/iteration features:
-  - show retrieved chunks + scores (before/after rerank)
-  - show final prompt (or a redacted version) and model output
-  - show citations and latency breakdown
-  - dropdown to pick a saved run/config for side-by-side comparison
-
-### OpenAI usage
-
-- `ChatOpenAI` for generation
-- embeddings:
-  - Option A: OpenAI embeddings (fast to start, consistent)
-  - Option B: local embedding model (optional stretch; can reduce cost)
-
-> Keep the embeddings choice pluggable.
-
----
-
-## 2.5 Intended chatbot questions (scope)
-
-This is an **evidence-grounded biomedical literature QA chatbot** (a “PubMed literature assistant”), not a general conversational assistant.
-
-### Best-fit question types (aligned with BioASQ + PubMedQA)
-
-1. **Yes/No/Maybe questions** (strong fit; easy to score)
-   - *Example:* "Does metformin reduce cancer risk in patients with diabetes?"
-   - *Example:* "Is vitamin D supplementation associated with reduced fracture risk in older adults?"
-
-2. **Factoid questions** (short, specific answers)
-   - *Example:* "Which gene is mutated in Huntington's disease?"
-   - *Example:* "What receptor does naloxone primarily antagonize?"
-
-3. **List questions** (return a set of items with citations)
-   - *Example:* "What are common adverse effects of amiodarone?"
-   - *Example:* "Which drugs are ACE inhibitors?"
-
-4. **Summary / synthesis questions** (best for showing RAG value + citations)
-   - *Example:* "Summarize evidence on SGLT2 inhibitors and heart failure outcomes."
-   - *Example:* "What does the literature say about ketogenic diets and epilepsy control?"
-
-### Out-of-scope queries (must refuse / reframe)
-
-- Personalized medical advice:
-  - “Should I take X?” “What dose should I take?” “Is this safe for me?”
+- Personalized medical advice: "Should I take X?" "What dose should I take?" "Is this safe for me?"
 - Diagnosis / treatment planning for an individual
 
-**Reframe pattern:** “I can’t give personal medical advice, but I can summarize what published studies report about X for condition Y and cite the relevant PubMed articles.”
+**Reframe pattern:** "I can't give personal medical advice, but I can summarize what published studies report about X for condition Y and cite the relevant PubMed articles."
 
 ---
 
-## 3. Datasets and "golden tests"
+## 2. Data
 
-### 3.1 BioASQ Task B (required)
+### 2.1 BioASQ Task B
 
 Per question, you get:
 
-- gold relevant **documents** (PMIDs) and/or **snippets**
-- gold answers:
-  - **exact** answers (factoid/list/yes-no)
-  - **ideal** answers (summary paragraph)
+- Gold relevant **documents** (PMIDs) and/or **snippets**
+- Gold answers:
+  - **Exact** answers (factoid/list/yes-no)
+  - **Ideal** answers (summary paragraph)
 
 These labels power both retrieval and generation evaluation.
 
-### 3.2 PubMedQA (required)
+**Created by:** BioASQ challenge organizers (a consortium-supported effort) with biomedical experts writing questions and providing gold documents/snippets and gold answers.
+
+### 2.2 PubMedQA
 
 Per sample, you get:
 
-- question (usually yes/no/maybe style)
-- label: **yes/no/maybe**
-- supporting abstract/context
+- Question (usually yes/no/maybe style)
+- Label: **yes/no/maybe**
+- Supporting abstract/context
 
 This provides a second benchmark with clean auto-scoring.
 
-### 3.3 Dataset sources (exact download locations)
+**Created by:** Qiao Jin, Bhuwan Dhingra, Zhengping Liu, William W. Cohen, Xinghua Lu.
 
-> Add these links to your README and also record the **exact version/date** of each download in `data/raw/manifest.json`.
+**Approach:** PubMedQA is treated as a **RAG + evidence task** that outputs yes/no/maybe with citations, consistent with BioASQ. The model retrieves evidence, generates an answer with citations, and the label is extracted for scoring.
 
-**BioASQ Task B datasets (official)**
+### 2.3 Dataset Sources
 
-- BioASQ Participants Area → **Datasets** (Task B / “Task *b*” downloads)
+> Record the **exact version/date** of each download in `data/raw/manifest.json`.
+
+#### BioASQ Task B (official)
+
+- BioASQ Participants Area → **Datasets** (Task B / "Task *b*" downloads)
 - BioASQ Participants Area → Task *b* page (includes dataset JSON format notes)
 
-**PubMedQA datasets (official)**
+#### PubMedQA (official)
 
 - PubMedQA homepage (links to the dataset + code repository)
 - PubMedQA GitHub repository (download instructions and splitting scripts)
 
-**Convenience mirrors (optional)**
+#### Convenience mirrors (optional)
 
 - Hugging Face datasets: `bigbio/bioasq_task_b` (community packaging)
 - Hugging Face datasets: `qiaojin/PubMedQA` (community packaging)
 
-**PubMed abstracts for your retrieval corpus**
+#### PubMed abstracts for retrieval corpus
 
 - **Chosen approach:** build the retrieval corpus from a **Hugging Face PubMed abstracts dataset**.
 - Record the **dataset name**, **dataset version**, and **revision/commit hash** in `data/raw/manifest.json`.
 
-### 3.4 Clarification: what “comes from PubMed”
+#### Clarification: what "comes from PubMed"
 
 This project uses **PubMed** in two different ways:
 
 - **Underlying literature source (corpus):** the retrieval corpus is built from **PubMed records (titles/abstracts)**. PubMed is the original source of that text.
-- **Benchmark datasets (labels/tests):** BioASQ and PubMedQA are **separate benchmark datasets** created by their respective organizers/authors. They *reference* PubMed articles (PMIDs) and are grounded in PubMed literature, but they are not “PubMed datasets” themselves.
+- **Benchmark datasets (labels/tests):** BioASQ and PubMedQA are **separate benchmark datasets** created by their respective organizers/authors. They *reference* PubMed articles (PMIDs) and are grounded in PubMed literature, but they are not "PubMed datasets" themselves.
 - **Hugging Face role:** Hugging Face is the **distribution/packaging layer** used to download (a) the benchmark datasets and (b) a PubMed-abstracts corpus.
 
-### 3.5 Who created BioASQ and PubMedQA
+### 2.4 Golden Suite
 
-- **BioASQ Task B:** created/curated by the **BioASQ challenge organizers** (a consortium-supported effort) with **biomedical experts** writing questions and providing gold documents/snippets and gold answers.
-- **PubMedQA:** created by the authors of the PubMedQA dataset/paper (**Qiao Jin, Bhuwan Dhingra, Zhengping Liu, William W. Cohen, Xinghua Lu**).
+Define a stable subset for consistent evaluation:
+
+| Dataset | File | Size |
+|---------|------|------|
+| BioASQ | `bioasq_golden_200.jsonl` | 200 questions |
+| PubMedQA | `pubmedqa_golden_500.jsonl` | 200–500 questions (depending on runtime) |
+
+- Keep the subset deterministic (seeded sampling, committed to repo).
+- Use this subset for:
+  - Quick iteration during development
+  - Comparing configs during sweeps
+  - Manual regression checks before deploying new configs to demo
 
 ---
 
-## 4. Functional requirements
+## 3. Functional Requirements
 
-### R1. Data loaders
+> **Convention:** Requirements are labeled with standard prefixes:
+> - **[FR-#]** = Functional Requirement (what the system must *do*)
+> - **[NFR-#]** = Non-Functional Requirement (how the system must *behave*) — see Section 4
 
-- **BioASQ loader**
-  - Parse questions, types, gold docs/snippets, exact/ideal answers
-  - Assign stable `question_id` keys for caching and evaluation artifacts
-- **PubMedQA loader**
-  - Parse train/val/test splits
-  - Extract `question_id`, question, label, and supporting context/PMIDs (if available)
+### 3.1 [FR-1] Data Loaders
 
-### R2. Corpus builder (PubMed abstracts)
+#### BioASQ loader
+
+- Parse questions, types, gold docs/snippets, exact/ideal answers
+- Assign stable `question_id` keys for caching and evaluation artifacts
+
+#### PubMedQA loader
+
+- Parse train/val/test splits
+- Extract `question_id`, question, label, and supporting context/PMIDs (if available)
+
+### 3.2 [FR-2] Corpus Builder (PubMed Abstracts)
 
 Build a corpus of texts to retrieve from.
 
-#### R2.1 Source of abstracts (selected: **Option A — Hugging Face**)
+#### FR-2.1 Source of abstracts
 
 **Option A — Hugging Face (selected for this project)**
 
 - Use a Hugging Face dataset that contains PubMed abstracts at scale.
 - Pin the **exact dataset revision** (commit hash) so the corpus is reproducible.
 - Sample a **distractor set** from the same dataset using a fixed random seed.
-- **Important practical note:** the popular `ncbi/pubmed` dataset represents the full PubMed baseline and is **very large** (tens of millions of records). Treat it as an optional source for *distractors* or large-scale experiments; for a 2–4 week project, prefer a smaller HF PubMed corpus.
+- **Important practical note:** the popular `ncbi/pubmed` dataset represents the full PubMed baseline and is **very large** (tens of millions of records). For a 2–4 week project, prefer a smaller HF PubMed corpus.
 
-> **Decision:** This project will use **Option A (Hugging Face)** to build the retrieval corpus.
-
-**Option B — NCBI E-utilities (PMID-driven, alternative)**
+**Option B — NCBI E-utilities (alternative)**
 
 - Build a PMID list (all BioASQ gold PMIDs + all PubMedQA PMIDs + distractor PMIDs).
-- Fetch abstracts via NCBI E-utilities (e.g., `esummary`/`efetch`) with:
-  - on-disk caching
-  - retries with exponential backoff
-  - a polite rate limit (configurable; default 3–10 req/s depending on your API key)
+- Fetch abstracts via NCBI E-utilities with on-disk caching, retries, and rate limiting.
 
-> **Note:** Option B is kept as a documented alternative. The project baseline uses **Option A (Hugging Face)**.
+> **Decision:** This project uses **Option A (Hugging Face)**.
 
-#### R2.2 Caching and reproducible downloads (required)
-
-Because the baseline corpus source is **Hugging Face**, this section is about *repeatable dataset materialization* rather than NCBI request throttling.
+#### FR-2.2 Caching and reproducible downloads
 
 - Cache at two layers:
-  1. **HF dataset cache**: rely on the standard Hugging Face datasets cache (do not commit it). Record dataset **name + revision** (see manifest) so it can be rehydrated.
+  1. **HF dataset cache**: rely on the standard Hugging Face datasets cache (do not commit it). Record dataset **name + revision** so it can be rehydrated.
   2. **Materialized corpus cache**: write a deterministic, normalized `corpus.jsonl` under `data/processed/corpus/` (and a `chunks.jsonl` after chunking).
 - Deterministic materialization:
-  - use a fixed `sampling_seed`
-  - record the exact split/shard selection logic
-  - persist the exact **PMID lists** used:
+  - Use a fixed `sampling_seed`
+  - Record the exact split/shard selection logic
+  - Persist the exact **PMID lists** used:
     - `data/processed/pmids_gold.txt`
     - `data/processed/pmids_distractors.txt`
 - Robustness:
-  - allow resume/restart (write checkpoints while materializing)
-  - retry transient download/IO failures
+  - Allow resume/restart (write checkpoints while materializing)
+  - Retry transient download/IO failures
 
-#### R2.3 Reproducible manifest (required)
+#### FR-2.3 Reproducible manifest
 
-Create `data/raw/manifest.json` that records exactly what went into the corpus, including:
+Create `data/raw/manifest.json` that records exactly what went into the corpus:
 
-- corpus build timestamp
-- source method: `huggingface`
-- Hugging Face dataset provenance:
-  - dataset name (e.g., `ncbi/pubmed` or a smaller PubMed abstracts dataset)
-  - dataset version
-  - **dataset revision/commit** (pin this)
-  - selected splits/shards (if applicable)
-- sampling & filtering:
-  - `sampling_seed`
-  - gold PMID inclusion rule (BioASQ ∪ PubMedQA)
-  - distractor sampling rule (how many, from where)
-  - any language/abstract-present filters
-- counts:
-  - #PMIDs (gold)
-  - #PMIDs (distractors)
-  - #records materialized
-  - #chunks produced
-- integrity:
-  - checksum (e.g., SHA256) of final `corpus.jsonl`
-  - checksum of final `chunks.jsonl`
-  - checksum of `pmids_gold.txt` and `pmids_distractors.txt`
+- Corpus build timestamp
+- Source method: `huggingface`
+- Hugging Face dataset provenance (name, version, revision/commit, splits/shards)
+- Sampling & filtering (`sampling_seed`, gold PMID inclusion rule, distractor sampling rule, filters)
+- Counts (#PMIDs gold, #PMIDs distractors, #records materialized, #chunks produced)
+- Integrity (SHA256 checksums of `corpus.jsonl`, `chunks.jsonl`, PMID lists)
 
-#### R2.4 Corpus inclusion rules (minimum viable)
+#### FR-2.4 Corpus inclusion rules
 
 - Include all PMIDs referenced by **BioASQ gold documents**.
 - Include all PMIDs referenced by **PubMedQA** examples.
-- Add a configurable distractor set (e.g., 10k–100k abstracts) sampled with a fixed seed.
+- Add a distractor set sampled with a fixed seed:
+  - **Default size: 10k–20k abstracts** (sufficient for this project scope; fits comfortably in RAM with FAISS)
+  - Configurable via `distractor_count` parameter
 
-Output format (example):
+**Output format:**
 
 ```json
 {"pmid":"12345678","title":"...","abstract":"...","year":2020,"source":"pubmed"}
 ```
 
-### R3. Chunking (optimization target)
+### 3.3 [FR-3] Chunking (optimization target)
 
 Implement chunking as a pluggable component with configurations:
 
-- chunker types:
-  - sentence-aware splitter (recommended)
-  - token/character splitter (baseline)
-- parameters (sweepable):
+- **Chunker types:**
+  - Sentence-aware splitter (recommended)
+  - Token/character splitter (baseline)
+- **Parameters (sweepable):**
   - `chunk_size`
   - `chunk_overlap`
   - `separators` (if using recursive splitters)
-- store chunk metadata:
+- **Store chunk metadata:**
   - `pmid`, `chunk_id`, offsets, section tags if available
 
-### R4. Embedding (pluggable)
+### 3.4 [FR-4] Embedding (pluggable)
 
 - Interface: `embed_documents(chunks)` and `embed_query(question)`
 - Caching: persist embeddings keyed by `(model_name, chunk_hash)`.
 
-### R5. Vector store & indexing (FAISS-only)
+### 3.5 [FR-5] Vector Store & Indexing (FAISS-only)
 
 - Build FAISS index over chunk embeddings.
 - Persist:
   - FAISS index file
-  - chunk metadata store (e.g., SQLite / Parquet / JSONL)
+  - Chunk metadata store (e.g., SQLite / Parquet / JSONL)
 - Support rebuilding the index deterministically from the corpus + config.
 
-### R6. Retrieval (optimization target)
+### 3.6 [FR-6] Retrieval (optimization target)
 
 Implement retriever modes using the LangChain FAISS retriever interface.
 
-#### R6.1 Modes
+#### Modes
 
 - `similarity` (top-k)
 - `mmr` (Maximal Marginal Relevance)
 - `similarity_score_threshold` (or equivalent score-threshold filtering)
 
-#### R6.2 Sweepable parameters
+#### Sweepable parameters
 
 - `k`
 - `fetch_k` (for MMR)
 - `lambda_mult` (MMR diversity)
 - `score_threshold` (if using threshold mode)
 
-#### R6.3 Output schema
+#### Output schema
 
-- ranked `Document` chunks with:
-  - `page_content`
-  - `metadata` (must include `pmid`, `chunk_id`, and any provenance fields)
-  - retrieval score (store separately if the VectorStore wrapper doesn’t attach it)
+Ranked `Document` chunks with:
+- `page_content`
+- `metadata` (must include `pmid`, `chunk_id`, and any provenance fields)
+- Retrieval score (store separately if the VectorStore wrapper doesn't attach it)
 
-### R7. Reranking (optional but recommended; optimization target)
+### 3.7 [FR-7] Reranking (required; optimization target)
 
-GPU-friendly reranker options:
+Reranking is **required** for this project. It provides significant quality gains and is a core part of the RAG optimization story.
 
-- Cross-encoder reranker (HuggingFace) over top-N retrieved chunks
-- (Optional) LLM reranker via OpenAI (more expensive; use sparingly)
+#### GPU-friendly reranker options
 
-Sweepable parameters:
+- **Cross-encoder reranker (HuggingFace)** over top-N retrieved chunks — **recommended default**
+- LLM reranker via OpenAI (more expensive; use sparingly)
 
-- reranker model name
+#### Sweepable parameters
+
+- Reranker model name
 - `top_n` to rerank
-- final `k` for generation evidence
+- Final `k` for generation evidence
 
-### R8. Prompting & generation (optimization target)
+### 3.8 [FR-8] Prompting & Generation (optimization target)
 
-- Prompt templates must be configurable and versioned.
-- Requirements:
-  - Answer must be grounded in provided evidence
-  - Include citations (PMID + chunk_id)
-  - Refuse/abstain when evidence is insufficient
-  - Output a normalized schema (see below)
+Prompt templates must be configurable and versioned.
 
-#### R8.1 Parseable outputs (required)
+#### Requirements
+
+- Answer must be grounded in provided evidence
+- Include citations (PMID + chunk_id)
+- Refuse/abstain when evidence is insufficient
+- Output a normalized schema (see below)
+
+#### FR-8.1 Parseable outputs (required)
 
 To guarantee a stable evaluation pipeline, generation output must be **machine-parseable**.
 
 - Use **OpenAI structured outputs / JSON mode** (or tool/function calling) to enforce the response schema.
 - Validate with a strict schema (e.g., Pydantic). On validation failure:
-  - retry generation up to N times (configurable)
-  - if still invalid, mark the sample as `answer_type="unknown"` and log an artifact
+  - Retry generation up to N times (configurable)
+  - If still invalid, mark the sample as `answer_type="unknown"` and log an artifact
 
-#### R8.2 Strict citation policy (required)
+#### FR-8.2 Strict citation policy (required)
 
 - The model must cite **only from retrieved evidence chunks**.
 - Policy options (make this a prompt/config toggle you can sweep):
@@ -355,15 +364,15 @@ To guarantee a stable evaluation pipeline, generation output must be **machine-p
   - **Claim-level:** each factual claim group includes ≥1 citation
 - Citations must point to `pmid` + `chunk_id` present in the evidence set.
 
-#### R8.3 Abstain/refusal trigger (required)
+#### FR-8.3 Abstain/refusal trigger (required)
 
 Define explicit abstention logic (configurable) so you can measure and tune it.
 
 - **Evidence thresholding:** abstain if the top retrieval score is below `min_evidence_score` (or if fewer than `min_evidence_chunks` are above a threshold).
-- **Model self-check:** optionally ask the model to output a `supported=true|false` flag (or a short rationale) based strictly on provided evidence; abstain if `supported=false`.
+- **Model self-check:** optionally ask the model to output a `supported=true|false` flag based strictly on provided evidence; abstain if `supported=false`.
 - Always log why abstention occurred (score-based, self-check, or both).
 
-Suggested output schema:
+#### Suggested output schema
 
 ```json
 {
@@ -383,99 +392,110 @@ Suggested output schema:
 }
 ```
 
-### R9. Evaluation harness (golden tests)
+### 3.9 [FR-9] Evaluation Harness (Golden Tests)
 
-#### BioASQ
+#### BioASQ metrics
 
-**Retrieval metrics**
-
-- Recall@k (must)
-- MRR (must)
+**Retrieval:**
+- Recall@k (required)
+- MRR (required)
 - Optional: Precision@k, MAP
 
-**Answer metrics**
-
+**Answer:**
 - Yes/No: accuracy
 - Factoid: exact match (EM), token-F1
 - List: set-F1
-- Summary (ideal): ROUGE-L (must) and optional BERTScore
+- Summary (ideal): ROUGE-L (required) and optional BERTScore
 
-#### PubMedQA
+#### PubMedQA metrics
 
-- Label prediction accuracy (must)
+- Label prediction accuracy (required)
 - Macro-F1 (recommended)
 
-> For PubMedQA, decide whether you treat it as:
->
-> - a direct “label prediction” task, or
-> - a RAG + evidence task that still outputs yes/no/maybe with citations. This project assumes the second (RAG + citations) for consistency.
+### 3.10 [FR-10] Experiment Runner — RapidFire AI (core differentiator)
 
-### R10. Experiment runner (core differentiator)
+Build a sweep system using **[RapidFire AI](https://github.com/RapidFireAI/rapidfireai)** to run many RAG configurations and produce a leaderboard.
 
-Build a sweep system that can run many RAG configurations and produce a leaderboard.
+#### FR-10.1 RapidFire AI integration (required)
 
-Requirements:
+RapidFire AI is the **primary sweep driver** for this project. It provides:
+
+- **Hyperparallelized execution**: 16-24x throughput improvement over sequential runs
+- **Shard-based scheduling**: compare many configurations concurrently, even on a single GPU
+- **Interactive control**: stop, resume, clone-modify runs in real-time
+- **Automatic optimization**: intelligent GPU utilization and rate limit management for OpenAI API
+
+Run sweeps locally on the development machine using RapidFire AI.
+
+#### FR-10.2 Sweep configuration
 
 - Config-driven runs (YAML or TOML)
 - Support grid sweeps over:
-  - chunking params
-  - retriever params
-  - reranker params
-  - prompt template variants
-- Output:
-  - metrics summary table (CSV/JSON)
-  - per-run artifact bundle (retrieval results, prompts, outputs)
-  - “best config” report
+  - Chunking params
+  - Retriever params
+  - Reranker params
+  - Prompt template variants
 
-Optional (nice-to-have):
+#### FR-10.3 Output
 
-- Integrate **RapidFireAI** to drive sweeps / benchmarking if you want faster config exploration.
+- Metrics summary table (CSV/JSON)
+- Per-run artifact bundle (retrieval results, prompts, outputs)
+- "Best config" report identifying top-performing configurations
+- Leaderboard (`runs/leaderboard.csv`) comparing all sweep runs
 
-### R11. API + CLI
+### 3.11 [FR-11] API + CLI
 
-- CLI commands:
+#### CLI commands
 
-  - `ingest_bioasq`
-  - `ingest_pubmedqa`
-  - `build_corpus`
-  - `index_faiss`
-  - `eval`
-  - `sweep`
-  - `serve` (optional)
+| Command | Description |
+|---------|-------------|
+| `ingest_bioasq` | Load BioASQ dataset |
+| `ingest_pubmedqa` | Load PubMedQA dataset |
+| `build_corpus` | Build corpus from PubMed abstracts |
+| `index_faiss` | Build FAISS index |
+| `eval` | Run evaluation on golden suite |
+| `sweep` | Run RapidFire AI sweep |
+| `serve` | Start API server for demo |
 
-- FastAPI endpoints (optional):
+#### API endpoints (for Gradio demo backend)
 
-  - `POST /answer`
-  - `POST /retrieve`
-  - `GET /health`
+| Endpoint | Description |
+|----------|-------------|
+| `POST /answer` | Answer a question with citations |
+| `POST /retrieve` | Retrieve chunks without generation |
+| `GET /health` | Health check |
+
+> **Note:** No authentication required. The demo is publicly accessible.
 
 ---
 
-## 5. Non-functional requirements
+## 4. Non-Functional Requirements
 
-### N1. Reproducibility
+> **Convention:** Non-functional requirements are labeled **[NFR-#]** — these define *how* the system must behave (quality attributes).
+
+### 4.1 [NFR-1] Reproducibility
 
 - Every run must produce a `run.json` containing:
-  - git commit SHA
-  - config used
-  - model names (LLM + embeddings + reranker)
-  - dataset versions
-  - random seeds
+  - Git commit SHA
+  - Config used
+  - Model names (LLM + embeddings + reranker)
+  - Dataset versions
+  - Random seeds
 - Deterministic chunking when given the same input + config.
 
-### N2. Performance & iteration speed
+### 4.2 [NFR-2] Performance & Iteration Speed
 
 - Persist FAISS index and embeddings cache to avoid recompute.
 - Batch evaluation jobs (vectorized embedding queries, batched reranking where possible).
 
-### N3. Cost control (OpenAI)
+### 4.3 [NFR-3] Cost Control (OpenAI)
 
 - **Secrets handling:** load API keys from environment variables (e.g., `OPENAI_API_KEY`). Never commit keys; add `.env` to `.gitignore`.
 - **Prompt-hash caching:** cache LLM outputs keyed by a stable hash of:
-  - model name
-  - prompt template version
-  - full rendered prompt (including evidence)
-  - decoding params (temperature, max tokens)
+  - Model name
+  - Prompt template version
+  - Full rendered prompt (including evidence)
+  - Decoding params (temperature, max tokens)
   
   This prevents re-paying for identical evaluations during sweeps.
 - **Per-run budget guardrails (required):** enforce configurable caps:
@@ -483,159 +503,126 @@ Optional (nice-to-have):
   - `max_total_tokens` (input + output)
   - `max_usd` (estimated or measured)
 - **Budget exceeded behavior (configurable):**
-  - **fail-fast:** stop the run and mark it failed (recommended for CI)
+  - **fail-fast:** stop the run and mark it failed
   - **skip:** skip remaining questions and mark the run as partial (useful for exploratory sweeps)
 - **Reporting:** every run must report total tokens, estimated cost, and cache hit rate.
+- **Timeout handling:** configure a timeout for OpenAI API calls (default: 30 seconds). On timeout, retry up to N times before marking the sample as failed.
 
-### N4. Maintainability
+### 4.4 [NFR-4] Maintainability
 
 - Clear module boundaries: `data/`, `chunking/`, `index/`, `retrieve/`, `rerank/`, `generate/`, `eval/`, `experiments/`
 - Unit tests for scoring logic and config parsing.
 
-### N5. Safety
+### 4.5 [NFR-5] Safety
 
 - Prominent disclaimer: for educational use only, not medical advice.
 - Provide evidence-first output with citations; abstain when uncertain.
 
 ---
 
-## 6. Architecture (LangChain-first)
+## 5. Technical Design
 
-### High-level flow
+### 5.1 Tech Stack
 
+#### Python + core libs
+
+| Component | Technology |
+|-----------|------------|
+| Language | Python 3.12.x |
+| RAG Framework | LangChain (`langchain-community`, `langchain-openai`) |
+| Vector Store | FAISS (`faiss-cpu` or `faiss-gpu`) |
+| ML Framework | PyTorch (for GPU rerankers) |
+| API | FastAPI |
+| Testing | pytest |
+| Linting | ruff |
+| Typing | mypy (optional) |
+
+#### Front-end (demo web app)
+
+| Component | Technology |
+|-----------|------------|
+| Framework | Gradio |
+| Hosting | HuggingFace Spaces |
+| Authentication | None (public demo) |
+
+**Side-by-side comparison view** (key demo feature):
+- Left panel: Baseline RAG configuration
+- Right panel: Optimized RAG configuration
+- Synced input: same question sent to both pipelines simultaneously
+
+**Display for each response:**
+- Answer with inline citations
+- Retrieved chunks with scores (before/after rerank)
+- Latency breakdown (retrieve / rerank / generate)
+- Config summary (chunking, retriever, reranker settings)
+
+#### OpenAI usage
+
+- `ChatOpenAI` for generation
+- Embeddings:
+  - Option A: OpenAI embeddings (fast to start, consistent)
+  - Option B: Local embedding model (optional stretch; can reduce cost)
+
+> Keep the embeddings choice pluggable.
+
+### 5.2 Architecture
+
+#### High-level flow
+
+```
 1. Load corpus docs (PubMed abstracts)
-2. Chunk docs → `Document` objects
+2. Chunk docs → Document objects
 3. Embed chunks → vectors
 4. Index in FAISS (+ metadata store)
 5. For each question:
-   - retrieve chunks (similarity/MMR/threshold)
-   - optionally rerank top-N
-   - build prompt with top evidence
-   - call OpenAI LLM
-   - parse and normalize output
+   ├── Retrieve chunks (similarity/MMR/threshold)
+   ├── Rerank top-N with cross-encoder
+   ├── Build prompt with top evidence
+   ├── Call OpenAI LLM
+   └── Parse and normalize output
 6. Score against gold labels (BioASQ / PubMedQA)
 7. Save metrics + artifacts
+```
 
-### Suggested repo layout
+### 5.3 Repo Layout
 
 ```
 biorag-bench/
-  README.md
-  pyproject.toml
-  configs/
-    base.yaml
-    prompts/
-    sweeps/
-  data/
-    raw/
-    processed/
-  runs/                 # run outputs (metrics + artifacts)
-  src/
-    biorag/
-      data/
-      chunking/
-      embeddings/
-      index/
-      retrieve/
-      rerank/
-      generate/
-      eval/
-      experiments/
-      api/
-      utils/
-  tests/
-  .github/workflows/
+├── README.md
+├── pyproject.toml
+├── configs/
+│   ├── base.yaml
+│   ├── prompts/
+│   └── sweeps/
+├── data/
+│   ├── raw/
+│   └── processed/
+├── runs/                 # run outputs (metrics + artifacts)
+├── src/
+│   └── biorag/
+│       ├── data/
+│       ├── chunking/
+│       ├── embeddings/
+│       ├── index/
+│       ├── retrieve/
+│       ├── rerank/
+│       ├── generate/
+│       ├── eval/
+│       ├── experiments/
+│       ├── api/
+│       └── utils/
+├── tests/
+└── demo/                 # Gradio demo app for HuggingFace Spaces
 ```
 
----
+### 5.4 Config Design
 
-## 7. "Golden suite" and CI regression gates
-
-### Golden suite
-
-- Define a stable subset:
-  - `bioasq_golden_200.jsonl`
-  - `pubmedqa_golden_500.jsonl` (or 200–500 depending on runtime)
-- Keep the subset deterministic (seeded sampling, committed to repo).
-
-### CI gating (example)
-
-CI fails if (relative to baseline JSON committed in repo):
-
-- BioASQ Recall@10 drops by > 1.0 point
-- BioASQ MRR drops by > 0.5 point
-- BioASQ exact-answer F1 drops by > 1.0 point
-- PubMedQA accuracy drops by > 1.0 point
-
-> Store baseline metrics in `configs/baselines/` and compare in CI.
-
----
-
-## 8. Deliverables (what you will ship)
-
-### Required
-
-- Public repo with:
-  - `README` quickstart
-  - FAISS indexing scripts
-  - evaluation harness for BioASQ + PubMedQA
-  - sweep runner producing a metrics leaderboard
-  - CI regression gates on golden suites
-
-### Valuable add-ons (within 2–4 weeks)
-
-- A “Top configs” leaderboard table committed to repo (`runs/leaderboard.csv`)
-- A short failure analysis doc:
-  - show 3–5 examples where retrieval failed
-  - show prompt/rerank fix that improved it
-- A cost/latency report:
-  - average tokens per answer
-  - retrieval/rerank/generate latency
-
----
-
-## 9. Milestones (2–4 week plan)
-
-### Week 1 — Baseline system + eval
-
-- Ingest BioASQ + PubMedQA
-- Build corpus from referenced PMIDs (+ distractors)
-- Chunk + embed + FAISS index
-- Basic retrieval + OpenAI generation + citations
-- Implement evaluation for:
-  - BioASQ retrieval (Recall@k, MRR)
-  - BioASQ answers (EM/F1/ROUGE-L)
-  - PubMedQA label accuracy
-
-### Week 2 — Optimization loop
-
-- Add:
-  - multiple chunkers + parameters
-  - MMR + threshold retrieval
-- Add experiment runner (`sweep`) and leaderboard output
-- Establish golden suites and CI gating
-
-### Week 3 — Reranking + better prompting (optional but high ROI)
-
-- Add GPU cross-encoder reranker (top-N rerank)
-- Improve prompts (citation discipline, abstain rules)
-- Add artifact viewer scripts (per-question debug dumps)
-
-### Week 4 — Polish
-
-- Tighten docs, final leaderboard, failure analysis
-- Optional demo API (FastAPI) + minimal UI
-
----
-
-## 10. Config design (example)
-
-`configs/base.yaml` (illustrative)
+Example: `configs/base.yaml`
 
 ```yaml
 llm:
   provider: openai
-  model: gpt-4.1-mini
+  model: gpt-4o-mini
   temperature: 0.0
   max_tokens: 350
 
@@ -664,18 +651,47 @@ prompt:
   template: prompts/cite_and_abstain_v2.txt
 ```
 
----
+### 5.5 GPU Usage
 
-## 11. Notes on GPU usage
+Your GPU is used for:
 
-Your GPU is most valuable for:
-
-- cross-encoder reranking (significant quality gains)
-- optional local embeddings (cost reduction / faster iteration later)
+| Use Case | Required? |
+|----------|-----------|
+| **Cross-encoder reranking** | Required — significant quality gains |
+| Local embeddings | Optional — cost reduction / faster iteration |
 
 Keep the baseline working with OpenAI embeddings first; add local embeddings only if time allows.
 
 ---
 
-*Document version:* v1 (LangChain + FAISS + OpenAI + optimization focus + BioASQ+PubMedQA)
+## 6. Deliverables
 
+### 6.1 Required
+
+#### Public repo
+
+- `README` quickstart
+- FAISS indexing scripts
+- Evaluation harness for BioASQ + PubMedQA
+- RapidFire AI sweep runner producing a metrics leaderboard
+
+#### Gradio demo on HuggingFace Spaces
+
+- Side-by-side comparison (baseline vs optimized RAG)
+- Public access (no authentication)
+
+### 6.2 Valuable Add-ons
+
+Within the 2–4 week timeline:
+
+- A "Top configs" leaderboard table committed to repo (`runs/leaderboard.csv`)
+- A short failure analysis doc:
+  - Show 3–5 examples where retrieval failed
+  - Show prompt/rerank fix that improved it
+- A cost/latency report:
+  - Average tokens per answer
+  - Retrieval/rerank/generate latency
+
+---
+
+*Document version:* v4 (FR/NFR labeling convention)
