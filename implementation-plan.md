@@ -3,7 +3,8 @@ name: BioRAG Bench Implementation
 overview: A phased implementation plan to build the BioRAG Bench pipeline, prioritizing an end-to-end demo first, then adding evaluation and optimization capabilities. Each phase is testable with unit and/or integration tests.
 last_updated: 2026-01-04
 implemented_by: AI Assistant (Claude)
-test_count: 88
+test_count: 213
+test_coverage: 74.73%
 todos:
   - id: phase-0
     content: "Phase 0: Project foundation - structure, dependencies, testing setup"
@@ -27,7 +28,9 @@ todos:
     notes: "Retriever with similarity/MMR/threshold modes, CrossEncoderReranker with batch GPU support"
   - id: phase-4
     content: "Phase 4: Generation - prompts, LLM output, abstention"
-    status: in_progress
+    status: completed
+    completed_date: 2026-01-04
+    notes: "PromptTemplate, PromptManager, Generator with structured outputs, AbstentionChecker, LLMCache, CostTracker"
   - id: phase-5
     content: "Phase 5: RAG pipeline integration + basic Gradio demo"
     status: pending
