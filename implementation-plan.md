@@ -1,22 +1,33 @@
 ---
 name: BioRAG Bench Implementation
 overview: A phased implementation plan to build the BioRAG Bench pipeline, prioritizing an end-to-end demo first, then adding evaluation and optimization capabilities. Each phase is testable with unit and/or integration tests.
+last_updated: 2026-01-04
+implemented_by: AI Assistant (Claude)
+test_count: 88
 todos:
   - id: phase-0
     content: "Phase 0: Project foundation - structure, dependencies, testing setup"
-    status: pending
+    status: completed
+    completed_date: 2026-01-04
+    notes: "pyproject.toml, Makefile, config schemas, logging utilities, pytest setup"
   - id: phase-1
     content: "Phase 1: Data foundation - schemas, loaders, corpus builder"
-    status: pending
+    status: completed
+    completed_date: 2026-01-04
+    notes: "BioASQLoader, PubMedQALoader, CorpusBuilder, all Pydantic schemas"
   - id: phase-2
     content: "Phase 2: Indexing pipeline - chunking, embeddings, FAISS"
-    status: pending
+    status: completed
+    completed_date: 2026-01-04
+    notes: "RecursiveChunker, TokenChunker, OpenAIEmbedder, LocalEmbedder, FAISSStore, MetadataStore"
   - id: phase-3
     content: "Phase 3: Retrieval and reranking"
-    status: pending
+    status: completed
+    completed_date: 2026-01-04
+    notes: "Retriever with similarity/MMR/threshold modes, CrossEncoderReranker with batch GPU support"
   - id: phase-4
     content: "Phase 4: Generation - prompts, LLM output, abstention"
-    status: pending
+    status: in_progress
   - id: phase-5
     content: "Phase 5: RAG pipeline integration + basic Gradio demo"
     status: pending
