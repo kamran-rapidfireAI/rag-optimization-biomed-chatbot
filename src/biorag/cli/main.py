@@ -235,10 +235,132 @@ def retrieve(
 @app.command()
 def eval(
     config_path: Path | None = typer.Option(None, "--config", "-c"),
-    dataset: str = typer.Option("bioasq", "--dataset", "-d"),
+    dataset: str = typer.Option("bioasq", "--dataset", "-d", help="Dataset: bioasq or pubmedqa"),
+    split: str = typer.Option("train", "--split", "-s", help="Dataset split"),
+    max_questions: int | None = typer.Option(None, "--max", "-m", help="Max questions to evaluate"),
+    output_dir: Path | None = typer.Option(None, "--output", "-o", help="Output directory"),
+    index_path: Path | None = typer.Option(None, "--index", "-i", help="Path to FAISS index"),
+    run_id: str | None = typer.Option(None, "--run-id", help="Run identifier"),
+    quick: bool = typer.Option(False, "--quick", "-q", help="Quick eval with 10 samples"),
+    seed: int = typer.Option(42, "--seed", help="Random seed for sampling"),
 ) -> None:
-    """Run evaluation on golden suite."""
-    console.print("[yellow]Command will be implemented in Phase 6[/yellow]")
+    """Run evaluation on BioASQ or PubMedQA golden suite."""
+    from biorag.eval.harness import EvalProgress, EvaluationHarness
+    from biorag.indexing.faiss_store import FAISSStore
+    from biorag.pipeline.rag import RAGPipeline
+
+    config = load_config(config_path)
+    setup_logging(level=config.logging.level, json_format=config.logging.json_format)
+
+    console.print(f"[bold blue]Running evaluation on {dataset}[/bold blue]")
+
+    # Validate dataset
+    if dataset not in ("bioasq", "pubmedqa"):
+        console.print(f"[red]Unknown dataset: {dataset}. Use 'bioasq' or 'pubmedqa'[/red]")
+        raise typer.Exit(code=1)
+
+    # Set up output directory
+    out_dir = output_dir or config.paths.runs_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Progress callback
+    def show_progress(progress: EvalProgress) -> None:
+        console.print(
+            f"  Progress: {progress.completed}/{progress.total} "
+            f"({progress.progress_pct:.1f}%) - "
+            f"Elapsed: {progress.elapsed_seconds:.1f}s",
+            end="\r",
+        )
+
+    try:
+        # Create pipeline
+        pipeline = RAGPipeline(config=config)
+
+        # Load FAISS index if provided
+        if index_path:
+            console.print(f"Loading FAISS index from {index_path}...")
+            pipeline.load_index(index_path)
+
+        # Create harness
+        harness = EvaluationHarness(
+            pipeline=pipeline,
+            config=config,
+            output_dir=out_dir,
+        )
+
+        # Quick mode
+        if quick:
+            console.print(f"[yellow]Quick mode: evaluating 10 samples[/yellow]")
+            result = harness.quick_eval(
+                dataset=dataset,  # type: ignore
+                num_questions=10,
+                split=split,
+                seed=seed,
+            )
+        else:
+            # Load questions
+            console.print(f"Loading {dataset} questions ({split} split)...")
+            questions = harness.load_golden_suite(
+                dataset=dataset,  # type: ignore
+                split=split,
+                max_questions=max_questions,
+                seed=seed,
+            )
+            console.print(f"[green]✓ Loaded {len(questions)} questions[/green]")
+
+            # Run evaluation
+            console.print("Running evaluation...")
+            if dataset == "bioasq":
+                result = harness.evaluate_bioasq(
+                    questions,  # type: ignore
+                    run_id=run_id,
+                    progress_callback=show_progress,
+                )
+            else:
+                result = harness.evaluate_pubmedqa(
+                    questions,  # type: ignore
+                    run_id=run_id,
+                    progress_callback=show_progress,
+                )
+
+        console.print()  # New line after progress
+        console.print("[green]✓ Evaluation complete![/green]")
+
+        # Display results
+        if result.metrics:
+            console.print("\n[bold]Results:[/bold]")
+            console.print(f"  Run ID: {result.run_id}")
+            console.print(f"  Questions: {result.metrics.num_questions}")
+            console.print(f"  Abstained: {result.metrics.num_abstained}")
+
+            console.print("\n[bold]Retrieval Metrics:[/bold]")
+            for name, metric in result.metrics.retrieval_metrics.items():
+                if metric.count > 0:
+                    console.print(f"  {name}: {metric.value:.4f}")
+
+            console.print("\n[bold]Answer Metrics:[/bold]")
+            for name, metric in result.metrics.answer_metrics.items():
+                if metric.count > 0 and name not in result.metrics.retrieval_metrics:
+                    console.print(f"  {name}: {metric.value:.4f}")
+
+            console.print("\n[bold]Latency (avg):[/bold]")
+            console.print(f"  Retrieval: {result.metrics.avg_retrieval_latency_ms:.1f}ms")
+            console.print(f"  Rerank: {result.metrics.avg_rerank_latency_ms:.1f}ms")
+            console.print(f"  Generation: {result.metrics.avg_generation_latency_ms:.1f}ms")
+            console.print(f"  Total: {result.metrics.avg_total_latency_ms:.1f}ms")
+
+            console.print("\n[bold]Cost:[/bold]")
+            console.print(f"  Input tokens: {result.metrics.total_input_tokens:,}")
+            console.print(f"  Output tokens: {result.metrics.total_output_tokens:,}")
+            console.print(f"  Estimated cost: ${result.metrics.estimated_cost_usd:.4f}")
+            console.print(f"  Cache hit rate: {result.metrics.cache_hit_rate:.1%}")
+
+        if not quick:
+            console.print(f"\n[green]Results saved to {out_dir / result.run_id}[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error during evaluation: {e}[/red]")
+        raise typer.Exit(code=1) from None
 
 
 @app.command()
