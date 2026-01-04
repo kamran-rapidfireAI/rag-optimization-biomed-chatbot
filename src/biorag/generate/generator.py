@@ -420,16 +420,29 @@ class Generator:
         else:
             answer_type = "direct"
         
+        # Handle "null" string returned by LLM (should be None)
+        label = parsed.get("label")
+        if label == "null" or label == "":
+            label = None
+        
+        abstention_reason = parsed.get("abstention_reason")
+        if abstention_reason == "null" or abstention_reason == "":
+            abstention_reason = None
+        
+        answer_list = parsed.get("answer_list")
+        if answer_list == "null":
+            answer_list = None
+        
         return AnswerOutput(
             answer=parsed.get("answer", ""),
             answer_type=answer_type,
-            label=parsed.get("label"),
+            label=label,
             confidence=parsed.get("confidence"),
             citations=citations,
             abstained=parsed.get("abstained", False),
-            abstention_reason=parsed.get("abstention_reason"),
+            abstention_reason=abstention_reason,
             supported_by_evidence=parsed.get("supported_by_evidence", True),
-            answer_list=parsed.get("answer_list"),
+            answer_list=answer_list,
         )
 
     def _validate_citations(
