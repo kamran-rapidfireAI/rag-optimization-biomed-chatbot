@@ -53,16 +53,15 @@ When abstaining, clearly state "I cannot answer based on the available evidence"
 
 Respond with valid JSON:
 ```json
-{
+{{
     "answer": "Your evidence-based answer with inline citations [PMID:chunk_id]",
     "label": "yes|no|maybe or null",
     "answer_list": ["item1 [PMID:chunk_id]", "item2 [PMID:chunk_id]"] or null,
     "citations": [
-        {"pmid": "12345678", "chunk_id": "12345678_0", "quote": "exact quote from evidence"}
+        {{"pmid": "12345678", "chunk_id": "12345678_0", "quote": "exact quote from evidence"}}
     ],
     "supported_by_evidence": true,
     "abstained": false,
     "abstention_reason": null
-}
+}}
 ```
-

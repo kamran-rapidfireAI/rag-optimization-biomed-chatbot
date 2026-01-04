@@ -135,6 +135,100 @@ class TestPromptTemplate:
         
         assert "No evidence chunks available" in rendered
 
+    def test_render_template_with_json_braces(self, tmp_path: Path) -> None:
+        """Test that templates with escaped JSON braces render correctly.
+        
+        This tests the fix for the bug where literal {} in JSON examples
+        were interpreted as template variables by Python's str.format().
+        Templates must use {{ and }} to escape literal braces.
+        """
+        prompts_dir = tmp_path / "prompts"
+        prompts_dir.mkdir()
+        
+        # Create template with escaped JSON braces (like the real templates)
+        template_content = '''Question: {question}
+Evidence: {evidence}
+
+Respond with JSON:
+```json
+{{
+    "answer": "Your answer here",
+    "citations": [{{"pmid": "12345"}}],
+    "abstained": false
+}}
+```
+'''
+        template_file = prompts_dir / "json_template.txt"
+        template_file.write_text(template_content)
+        
+        template = PromptTemplate(
+            "prompts/json_template.txt",
+            configs_dir=tmp_path,
+        )
+        
+        chunks = [
+            RetrievalResult(
+                pmid="99999",
+                chunk_id="99999_0",
+                text="Test evidence",
+                score=0.9,
+                rank=1,
+            )
+        ]
+        
+        # This should not raise KeyError
+        rendered = template.render(
+            question="What is X?",
+            evidence_chunks=chunks,
+            question_type="factoid",
+        )
+        
+        # Verify template variables were substituted
+        assert "What is X?" in rendered
+        assert "Test evidence" in rendered
+        
+        # Verify JSON braces are properly unescaped in output
+        assert '"answer": "Your answer here"' in rendered
+        assert '"pmid": "12345"' in rendered
+        assert "{{" not in rendered  # Escaped braces should be unescaped
+        assert "}}" not in rendered
+
+    def test_real_templates_render_correctly(self) -> None:
+        """Test that the actual prompt templates can be rendered.
+        
+        This is a regression test for the escaped JSON braces fix.
+        """
+        pm = PromptManager()
+        
+        # Test both real templates
+        for template_path in ["prompts/cite_and_abstain_v1.txt", "prompts/cite_and_abstain_v2.txt"]:
+            template = pm.get_template(template_path)
+            
+            chunks = [
+                RetrievalResult(
+                    pmid="12345678",
+                    chunk_id="12345678_0",
+                    text="BRCA1 is a tumor suppressor gene.",
+                    score=0.95,
+                    rank=1,
+                )
+            ]
+            
+            # Should not raise any errors
+            rendered = template.render(
+                question="What is BRCA1?",
+                evidence_chunks=chunks,
+                question_type="factoid",
+            )
+            
+            # Verify key parts are present
+            assert "What is BRCA1?" in rendered
+            assert "BRCA1 is a tumor suppressor gene." in rendered
+            assert "12345678" in rendered
+            # Verify JSON example is properly rendered (braces unescaped)
+            assert '"answer"' in rendered
+            assert '"citations"' in rendered
+
     def test_get_prompt_hash(self, configs_dir: Path) -> None:
         """Test that same inputs produce same hash."""
         template = PromptTemplate(
