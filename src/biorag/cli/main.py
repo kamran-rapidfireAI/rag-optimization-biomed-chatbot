@@ -256,9 +256,33 @@ def serve(
     port: int = typer.Option(8000, "--port", "-p"),
     reload: bool = typer.Option(False, "--reload", "-r"),
     config_path: Path | None = typer.Option(None, "--config", "-c"),
+    index_path: Path | None = typer.Option(None, "--index", "-i", help="Path to FAISS index"),
+    log_level: str = typer.Option("info", "--log-level", "-l"),
 ) -> None:
-    """Start the FastAPI server."""
-    console.print("[yellow]Command will be implemented in Phase 5[/yellow]")
+    """Start the FastAPI server for the BioRAG Bench API."""
+    from biorag.api.app import run_server
+
+    config = load_config(config_path)
+    setup_logging(level=config.logging.level, json_format=config.logging.json_format)
+
+    console.print(f"[bold blue]Starting BioRAG Bench API Server[/bold blue]")
+    console.print(f"  Host: {host}")
+    console.print(f"  Port: {port}")
+    console.print(f"  Reload: {reload}")
+    console.print(f"  Config: {config_path or 'default'}")
+    console.print(f"  Index: {index_path or 'default'}")
+    console.print()
+    console.print(f"[green]API docs available at http://{host}:{port}/docs[/green]")
+    console.print()
+
+    run_server(
+        host=host,
+        port=port,
+        reload=reload,
+        config_path=config_path,
+        index_path=index_path,
+        log_level=log_level,
+    )
 
 
 if __name__ == "__main__":

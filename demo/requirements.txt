@@ -1,0 +1,13 @@
+# BioRAG Bench Demo - Minimal dependencies for HuggingFace Spaces
+gradio>=4.0.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# Core dependencies (installed via main package)
+# torch
+# faiss-cpu
+# sentence-transformers
+# openai
+

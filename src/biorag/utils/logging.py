@@ -162,6 +162,41 @@ class PipelineLoggerAdapter(logging.LoggerAdapter):
             },
         )
 
+    def log_pipeline_stage(
+        self,
+        stage: str,
+        details: dict[str, Any],
+        latency_ms: float,
+    ) -> None:
+        """
+        Log a generic pipeline stage execution.
+
+        Args:
+            stage: Name of the pipeline stage
+            details: Dictionary of stage-specific details
+            latency_ms: Stage execution time in milliseconds
+        """
+        # Create a summary message
+        if stage == "retrieve":
+            msg = f"Pipeline retrieve: {details.get('num_results', 'N/A')} results in {latency_ms:.1f}ms"
+        elif stage == "rerank":
+            msg = f"Pipeline rerank: {details.get('input_count', 'N/A')} → {details.get('output_count', 'N/A')} in {latency_ms:.1f}ms"
+        elif stage == "generate":
+            msg = f"Pipeline generate: {details.get('input_tokens', 0)} in / {details.get('output_tokens', 0)} out in {latency_ms:.1f}ms"
+        else:
+            msg = f"Pipeline {stage}: {latency_ms:.1f}ms"
+
+        self.debug(
+            msg,
+            extra={
+                "extra_data": {
+                    "stage": stage,
+                    "latency_ms": latency_ms,
+                    **details,
+                }
+            },
+        )
+
 
 def setup_logging(
     level: str = "INFO",
