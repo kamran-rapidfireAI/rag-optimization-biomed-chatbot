@@ -1,0 +1,48 @@
+# Prompt Template Sweep
+# Varies prompt templates and citation policies
+
+name: prompt_sweep
+description: "Sweep over prompt templates and policies to optimize answer quality"
+
+# Use base configuration
+base_config: configs/base.yaml
+
+# Parameters to sweep
+parameters:
+  - path: prompt.template
+    range:
+      type: choice
+      values:
+        - prompts/cite_and_abstain_v1.txt
+        - prompts/cite_and_abstain_v2.txt
+
+  - path: prompt.citation_policy
+    range:
+      type: choice
+      values: [strict, claim-level]
+
+  - path: abstention.min_evidence_score
+    range:
+      type: grid
+      values: [0.2, 0.3, 0.4, 0.5]
+
+  - path: abstention.min_evidence_chunks
+    range:
+      type: grid
+      values: [1, 2, 3]
+
+# Evaluation settings
+dataset: bioasq
+split: train
+max_questions: 50
+seed: 42
+
+# Execution settings
+parallel: false
+max_parallel: 1
+save_artifacts: true
+
+
+
+
+

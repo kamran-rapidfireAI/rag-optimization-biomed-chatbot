@@ -1,0 +1,46 @@
+# Retriever Parameter Sweep
+# Varies retrieval mode and parameters
+
+name: retriever_sweep
+description: "Sweep over retrieval parameters to optimize recall and diversity"
+
+# Use base configuration
+base_config: configs/base.yaml
+
+# Parameters to sweep
+parameters:
+  - path: retrieval.mode
+    range:
+      type: choice
+      values: [similarity, mmr, similarity_score_threshold]
+
+  - path: retrieval.k
+    range:
+      type: grid
+      values: [5, 10, 15, 20]
+
+  - path: retrieval.fetch_k
+    range:
+      type: grid
+      values: [25, 50, 100]
+
+  - path: retrieval.lambda_mult
+    range:
+      type: grid
+      values: [0.3, 0.5, 0.7]
+
+# Evaluation settings
+dataset: bioasq
+split: train
+max_questions: 50
+seed: 42
+
+# Execution settings
+parallel: false
+max_parallel: 1
+save_artifacts: true
+
+
+
+
+

@@ -1,0 +1,41 @@
+# Chunking Parameter Sweep
+# Varies chunk_size and chunk_overlap to find optimal settings
+
+name: chunking_sweep
+description: "Sweep over chunking parameters to optimize retrieval quality"
+
+# Use base configuration
+base_config: configs/base.yaml
+
+# Parameters to sweep
+parameters:
+  - path: chunking.chunk_size
+    range:
+      type: grid
+      values: [200, 350, 500, 750]
+
+  - path: chunking.chunk_overlap
+    range:
+      type: grid
+      values: [20, 40, 60, 80]
+
+  - path: chunking.type
+    range:
+      type: choice
+      values: [recursive, token]
+
+# Evaluation settings
+dataset: bioasq
+split: train
+max_questions: 50
+seed: 42
+
+# Execution settings
+parallel: false
+max_parallel: 1
+save_artifacts: true
+
+
+
+
+

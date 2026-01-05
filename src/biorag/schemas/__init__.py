@@ -11,6 +11,12 @@ from biorag.schemas.evaluation import (
     RetrievalResult,
     RunMetrics,
 )
+from biorag.schemas.experiments import (
+    ParameterRange,
+    SweepConfig,
+    SweepParameter,
+    SweepResult,
+)
 from biorag.schemas.generation import (
     AnswerOutput,
     Citation,
@@ -34,6 +40,11 @@ __all__ = [
     "PubMedQAQuestion",
     "RetrievalResult",
     "RunMetrics",
+    # Experiments
+    "ParameterRange",
+    "SweepConfig",
+    "SweepParameter",
+    "SweepResult",
     # Generation
     "AnswerOutput",
     "Citation",

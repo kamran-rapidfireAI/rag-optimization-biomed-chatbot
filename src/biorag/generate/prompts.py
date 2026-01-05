@@ -248,3 +248,7 @@ class PromptManager:
         template = self.get_template(template_path)
         return template.render(question, evidence_chunks, question_type, **kwargs)
 
+
+
+
+

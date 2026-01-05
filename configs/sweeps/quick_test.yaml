@@ -1,0 +1,31 @@
+# Quick Test Sweep
+# Minimal sweep for testing the sweep runner
+
+name: quick_test
+description: "Minimal sweep for testing (2 configurations)"
+
+# Use base configuration
+base_config: configs/base.yaml
+
+# Parameters to sweep (just 2 configs)
+parameters:
+  - path: retrieval.k
+    range:
+      type: grid
+      values: [5, 10]
+
+# Evaluation settings
+dataset: bioasq
+split: train
+max_questions: 5
+seed: 42
+
+# Execution settings
+parallel: false
+max_parallel: 1
+save_artifacts: true
+
+
+
+
+

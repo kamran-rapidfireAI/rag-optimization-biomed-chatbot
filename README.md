@@ -123,8 +123,8 @@ python -m pytest tests/integration/ -v
 
 ### Current Test Status
 
-- **243 tests passing**
-- **74.64% code coverage**
+- **383 tests passing**
+- **73.55% code coverage**
 
 ---
 
@@ -382,9 +382,9 @@ python -m pytest tests/ --cov=src/biorag --cov-report=html
 | 3 | ✅ Complete | Retrieval and reranking |
 | 4 | ✅ Complete | Generation with structured outputs |
 | 5 | ✅ Complete | RAG pipeline + API + Demo |
-| 6 | 🔄 Next | Evaluation harness |
-| 7 | ⏳ Pending | Experiment sweeps |
-| 8 | ⏳ Pending | HuggingFace Spaces deployment |
+| 6 | ✅ Complete | Evaluation harness (metrics, BioASQ, PubMedQA evaluators) |
+| 7 | ✅ Complete | Experiment sweeps (RapidFire AI integration) |
+| 8 | 🔄 Next | HuggingFace Spaces deployment + Demo enhancement |
 
 ---
 

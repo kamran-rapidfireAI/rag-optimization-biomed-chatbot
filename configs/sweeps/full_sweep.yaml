@@ -1,0 +1,61 @@
+# Full Parameter Sweep
+# Combined sweep across all major parameters (reduced grid for feasibility)
+
+name: full_sweep
+description: "Combined sweep across chunking, retrieval, reranking, and generation"
+
+# Use base configuration
+base_config: configs/base.yaml
+
+# Parameters to sweep (reduced grid to keep total configs manageable)
+parameters:
+  # Chunking
+  - path: chunking.chunk_size
+    range:
+      type: grid
+      values: [250, 400]
+
+  - path: chunking.chunk_overlap
+    range:
+      type: grid
+      values: [30, 50]
+
+  # Retrieval
+  - path: retrieval.mode
+    range:
+      type: choice
+      values: [similarity, mmr]
+
+  - path: retrieval.k
+    range:
+      type: grid
+      values: [8, 12]
+
+  # Reranking
+  - path: rerank.final_k
+    range:
+      type: grid
+      values: [6, 10]
+
+  # Prompting
+  - path: prompt.template
+    range:
+      type: choice
+      values:
+        - prompts/cite_and_abstain_v2.txt
+
+# Evaluation settings
+dataset: bioasq
+split: train
+max_questions: 100
+seed: 42
+
+# Execution settings
+parallel: false
+max_parallel: 1
+save_artifacts: true
+
+
+
+
+

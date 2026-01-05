@@ -365,11 +365,144 @@ def eval(
 
 @app.command()
 def sweep(
-    sweep_config: Path = typer.Argument(..., help="Path to sweep config YAML"),
-    config_path: Path | None = typer.Option(None, "--config", "-c"),
+    sweep_config_path: Path = typer.Argument(..., help="Path to sweep config YAML"),
+    config_path: Path | None = typer.Option(None, "--config", "-c", help="Base config path"),
+    output_dir: Path | None = typer.Option(None, "--output", "-o", help="Output directory"),
+    index_path: Path | None = typer.Option(None, "--index", "-i", help="Path to FAISS index"),
+    parallel: bool = typer.Option(False, "--parallel", "-p", help="Use RapidFire AI parallel execution"),
+    num_shards: int = typer.Option(4, "--shards", help="Number of shards for RapidFire AI"),
+    no_rapidfire: bool = typer.Option(False, "--no-rapidfire", help="Disable RapidFire AI"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show configs without running"),
 ) -> None:
-    """Run hyperparameter sweep."""
-    console.print("[yellow]Command will be implemented in Phase 7[/yellow]")
+    """Run hyperparameter sweep using RapidFire AI for parallel execution."""
+    from biorag.experiments.sweep import RAPIDFIRE_AVAILABLE, SweepRunner, generate_grid
+    from biorag.schemas.experiments import SweepConfig
+
+    config = load_config(config_path)
+    setup_logging(level=config.logging.level, json_format=config.logging.json_format)
+
+    console.print(f"[bold blue]Loading sweep config: {sweep_config_path}[/bold blue]")
+
+    # Show RapidFire AI status
+    if RAPIDFIRE_AVAILABLE and not no_rapidfire:
+        console.print("[green]✓ RapidFire AI available - hyperparallelized execution enabled[/green]")
+    elif no_rapidfire:
+        console.print("[yellow]RapidFire AI disabled by --no-rapidfire flag[/yellow]")
+    else:
+        console.print("[yellow]RapidFire AI not available - using sequential execution[/yellow]")
+        console.print("  Install with: pip install rapidfireai")
+
+    try:
+        # Load sweep config
+        sweep_cfg = SweepConfig.from_yaml(str(sweep_config_path))
+
+        # Override parallel settings from CLI
+        if parallel:
+            sweep_cfg.parallel = True
+
+        # Override output dir
+        if output_dir:
+            sweep_cfg.output_dir = str(output_dir)
+
+        # Generate grid and show info
+        configs = generate_grid(sweep_cfg.parameters)
+        console.print(f"\n[bold]Sweep: {sweep_cfg.name}[/bold]")
+        console.print(f"  Description: {sweep_cfg.description}")
+        console.print(f"  Total configurations: {len(configs)}")
+        console.print(f"  Dataset: {sweep_cfg.dataset}")
+        console.print(f"  Max questions per run: {sweep_cfg.max_questions or 'all'}")
+        console.print(f"  Parallel: {sweep_cfg.parallel}")
+
+        console.print("\n[bold]Parameters:[/bold]")
+        for param in sweep_cfg.parameters:
+            values = param.get_values()
+            console.print(f"  {param.path}: {len(values)} values")
+            if len(values) <= 5:
+                console.print(f"    → {values}")
+            else:
+                console.print(f"    → {values[:3]} ... {values[-2:]}")
+
+        if dry_run:
+            console.print("\n[yellow]Dry run mode - showing first 5 configurations:[/yellow]")
+            for i, cfg in enumerate(configs[:5]):
+                console.print(f"\n  Config {i + 1}:")
+                for path, value in _flatten_dict(cfg):
+                    console.print(f"    {path}: {value}")
+            if len(configs) > 5:
+                console.print(f"\n  ... and {len(configs) - 5} more configurations")
+            return
+
+        # Confirm before running
+        console.print()
+        if not typer.confirm(f"Run {len(configs)} configurations?"):
+            console.print("[yellow]Sweep cancelled[/yellow]")
+            raise typer.Exit(code=0)
+
+        # Progress callback
+        def show_progress(current: int, total: int, result: object) -> None:
+            if result:
+                from biorag.experiments.runner import RunResult
+                r = result if isinstance(result, RunResult) else None
+                if r:
+                    status = "[green]✓[/green]" if r.status == "completed" else "[red]✗[/red]"
+                    console.print(
+                        f"  {status} [{current}/{total}] {r.run_id}: "
+                        f"metric={r.primary_metric:.4f}, time={r.latency.total_ms:.0f}ms"
+                    )
+                else:
+                    console.print(f"  [{current}/{total}] Completed")
+            else:
+                console.print(f"  [{current}/{total}] Running...")
+
+        # Create runner and execute sweep
+        runner = SweepRunner(
+            base_config=config,
+            output_dir=output_dir or config.paths.runs_dir,
+            index_path=index_path,
+            use_rapidfire=not no_rapidfire,
+        )
+
+        console.print("\n[bold]Running sweep...[/bold]")
+        result = runner.run_sweep(
+            sweep_cfg,
+            progress_callback=show_progress,
+            num_shards=num_shards,
+        )
+
+        # Display results
+        console.print("\n[green]✓ Sweep complete![/green]")
+        console.print(f"\n[bold]Results:[/bold]")
+        console.print(f"  Total runs: {result.total_runs}")
+        console.print(f"  Completed: {result.completed_runs}")
+        console.print(f"  Failed: {result.failed_runs}")
+        console.print(f"  Total cost: ${result.total_cost_usd:.4f}")
+
+        if result.best_run_id:
+            console.print(f"\n[bold]Best Configuration:[/bold]")
+            console.print(f"  Run ID: {result.best_run_id}")
+            console.print(f"  Primary metric: {result.best_metric:.4f}")
+            console.print(f"  Average metric: {result.average_metric:.4f}")
+
+        console.print(f"\n[green]Leaderboard saved to: {result.leaderboard_path}[/green]")
+
+    except FileNotFoundError as e:
+        console.print(f"[red]Error: Sweep config not found: {e}[/red]")
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        console.print(f"[red]Error running sweep: {e}[/red]")
+        raise typer.Exit(code=1) from None
+
+
+def _flatten_dict(d: dict, parent_key: str = "") -> list[tuple[str, object]]:
+    """Flatten nested dict into list of (path, value) tuples."""
+    items: list[tuple[str, object]] = []
+    for k, v in d.items():
+        new_key = f"{parent_key}.{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(_flatten_dict(v, new_key))
+        else:
+            items.append((new_key, v))
+    return items
 
 
 @app.command()

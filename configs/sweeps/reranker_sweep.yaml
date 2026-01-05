@@ -1,0 +1,48 @@
+# Reranker Parameter Sweep
+# Varies reranking model and parameters
+
+name: reranker_sweep
+description: "Sweep over reranking parameters to optimize answer quality"
+
+# Use base configuration
+base_config: configs/base.yaml
+
+# Parameters to sweep
+parameters:
+  - path: rerank.enabled
+    range:
+      type: choice
+      values: [true, false]
+
+  - path: rerank.model
+    range:
+      type: choice
+      values:
+        - cross-encoder/ms-marco-MiniLM-L-6-v2
+        - cross-encoder/ms-marco-TinyBERT-L-2-v2
+
+  - path: rerank.top_n
+    range:
+      type: grid
+      values: [25, 50, 75]
+
+  - path: rerank.final_k
+    range:
+      type: grid
+      values: [4, 8, 12]
+
+# Evaluation settings
+dataset: bioasq
+split: train
+max_questions: 50
+seed: 42
+
+# Execution settings
+parallel: false
+max_parallel: 1
+save_artifacts: true
+
+
+
+
+
