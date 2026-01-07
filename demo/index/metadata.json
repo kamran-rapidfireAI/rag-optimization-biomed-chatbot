@@ -1,0 +1,6 @@
+{
+  "index_type": "Flat",
+  "metric": "cosine",
+  "dimension": 3072,
+  "num_chunks": 309
+}

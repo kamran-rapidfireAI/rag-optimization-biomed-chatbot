@@ -16,11 +16,25 @@ import time
 from pathlib import Path
 from typing import Any
 
-import gradio as gr
+# Load environment variables from .env file BEFORE other imports
+from dotenv import load_dotenv
 
-# Configure paths
+# Configure paths first
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+
+# Load .env from project root
+load_dotenv(PROJECT_ROOT / ".env")
+
+import gradio as gr
+
+# Import the design token theme system
+# Use try/except for both package import and direct script execution
+try:
+    from demo.theme import BioRAGTheme
+except ImportError:
+    from theme import BioRAGTheme
+
 CONFIG_PATH = os.environ.get("BIORAG_CONFIG", PROJECT_ROOT / "configs" / "base.yaml")
 INDEX_PATH = os.environ.get("BIORAG_INDEX", PROJECT_ROOT / "data" / "processed" / "index")
 
@@ -144,6 +158,9 @@ class BioRAGDemo:
         self._baseline_pipeline: Any = None
         self._optimized_pipeline: Any = None
         self._single_pipeline: Any = None
+        
+        # Initialize the design token theme system
+        self._theme = BioRAGTheme()
 
     def _create_pipeline(self, config_overrides: dict[str, Any] | None = None) -> Any:
         """Create a RAG pipeline with optional config overrides."""
@@ -291,215 +308,12 @@ class BioRAGDemo:
         return (*baseline_outputs, *optimized_outputs)
 
     def get_theme(self) -> gr.themes.Base:
-        """Get the custom theme for the demo."""
-        return gr.themes.Base(
-            primary_hue="blue",
-            secondary_hue="purple",
-            neutral_hue="slate",
-            font=("IBM Plex Sans", "sans-serif"),
-            font_mono=("IBM Plex Mono", "monospace"),
-        ).set(
-            body_background_fill="#0d1117",
-            body_background_fill_dark="#0d1117",
-            block_background_fill="#161b22",
-            block_background_fill_dark="#161b22",
-            block_border_color="#30363d",
-            block_label_text_color="#8b949e",
-            block_title_text_color="#c9d1d9",
-            input_background_fill="#21262d",
-            input_background_fill_dark="#21262d",
-            input_border_color="#30363d",
-            button_primary_background_fill="#1f6feb",
-            button_primary_text_color="#ffffff",
-        )
+        """Get the custom theme for the demo using design token architecture."""
+        return self._theme.to_gradio_theme()
 
     def get_css(self) -> str:
-        """Get the custom CSS for the demo."""
-        return """
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
-        
-        :root {
-            --bg-primary: #0d1117;
-            --bg-secondary: #161b22;
-            --bg-tertiary: #21262d;
-            --border-color: #30363d;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --accent-red: #f85149;
-            --accent-purple: #a371f7;
-            --accent-orange: #d29922;
-        }
-        
-        .gradio-container {
-            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
-            background: 
-                radial-gradient(ellipse at 20% 0%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 100%, rgba(163, 113, 247, 0.08) 0%, transparent 50%),
-                linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%) !important;
-            min-height: 100vh;
-        }
-        
-        .main-header {
-            text-align: center;
-            padding: 40px 24px;
-            background: linear-gradient(180deg, rgba(88, 166, 255, 0.05) 0%, transparent 100%);
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 32px;
-            position: relative;
-        }
-        
-        .main-header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 200px;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
-        }
-        
-        .main-header h1 {
-            font-size: 2.8rem;
-            font-weight: 700;
-            color: #ffffff;
-            margin: 0 0 8px 0;
-            letter-spacing: -1px;
-            text-shadow: 0 0 40px rgba(88, 166, 255, 0.3);
-        }
-        
-        .main-header .subtitle {
-            color: var(--text-secondary);
-            font-size: 1.15rem;
-            font-weight: 400;
-            margin: 0;
-        }
-        
-        .main-header .dna-icon {
-            font-size: 3rem;
-            display: block;
-            margin-bottom: 16px;
-            filter: drop-shadow(0 0 20px rgba(88, 166, 255, 0.4));
-        }
-        
-        .comparison-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            font-weight: 600;
-            font-size: 14px;
-            letter-spacing: 0.5px;
-        }
-        
-        .baseline-header {
-            background: linear-gradient(135deg, rgba(88, 166, 255, 0.15) 0%, rgba(88, 166, 255, 0.05) 100%);
-            border: 1px solid rgba(88, 166, 255, 0.3);
-            color: var(--accent-blue);
-        }
-        
-        .optimized-header {
-            background: linear-gradient(135deg, rgba(63, 185, 80, 0.15) 0%, rgba(63, 185, 80, 0.05) 100%);
-            border: 1px solid rgba(63, 185, 80, 0.3);
-            color: var(--accent-green);
-        }
-        
-        .gr-button-primary {
-            background: linear-gradient(135deg, var(--accent-blue) 0%, #1f6feb 100%) !important;
-            border: none !important;
-            font-weight: 600 !important;
-            letter-spacing: 0.5px !important;
-            transition: all 0.2s ease !important;
-            box-shadow: 0 4px 12px rgba(88, 166, 255, 0.25) !important;
-        }
-        
-        .gr-button-primary:hover {
-            transform: translateY(-1px) !important;
-            box-shadow: 0 6px 20px rgba(88, 166, 255, 0.4) !important;
-        }
-        
-        .gr-textbox, .gr-dropdown {
-            font-family: 'IBM Plex Sans', sans-serif !important;
-        }
-        
-        .gr-markdown {
-            font-family: 'IBM Plex Sans', sans-serif !important;
-        }
-        
-        .gr-markdown code {
-            font-family: 'IBM Plex Mono', monospace !important;
-            background: rgba(88, 166, 255, 0.1) !important;
-            padding: 2px 8px !important;
-            border-radius: 4px !important;
-            color: var(--accent-blue) !important;
-            font-size: 0.9em !important;
-        }
-        
-        .gr-markdown table {
-            border-collapse: separate;
-            border-spacing: 0;
-            width: 100%;
-            margin: 12px 0;
-        }
-        
-        .gr-markdown th {
-            background: var(--bg-tertiary);
-            padding: 10px 12px;
-            text-align: left;
-            font-weight: 600;
-            color: var(--text-primary);
-            border-bottom: 2px solid var(--border-color);
-        }
-        
-        .gr-markdown td {
-            padding: 8px 12px;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--text-secondary);
-        }
-        
-        .gr-markdown blockquote {
-            border-left: 3px solid var(--accent-purple);
-            background: rgba(163, 113, 247, 0.05);
-            padding: 12px 16px;
-            margin: 12px 0;
-            border-radius: 0 8px 8px 0;
-            color: var(--text-secondary);
-            font-style: italic;
-        }
-        
-        .tab-nav button {
-            font-family: 'IBM Plex Sans', sans-serif !important;
-            font-weight: 500 !important;
-        }
-        
-        .footer {
-            text-align: center;
-            padding: 32px;
-            margin-top: 48px;
-            border-top: 1px solid var(--border-color);
-            background: linear-gradient(180deg, transparent 0%, rgba(88, 166, 255, 0.02) 100%);
-        }
-        
-        .footer p {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin: 0;
-        }
-        
-        .footer a {
-            color: var(--accent-blue);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        
-        .footer a:hover {
-            color: var(--accent-purple);
-        }
-        """
+        """Get the custom CSS for the demo using design token architecture."""
+        return self._theme.to_css()
 
     def create_interface(self) -> gr.Blocks:
         """Create the Gradio interface with side-by-side comparison."""

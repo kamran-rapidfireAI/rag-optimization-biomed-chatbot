@@ -1,0 +1,9 @@
+{
+  "num_documents": 50,
+  "num_chunks": 309,
+  "chunk_size": 350,
+  "chunk_overlap": 40,
+  "embeddings_provider": "openai",
+  "embeddings_model": "text-embedding-3-large",
+  "index_size": 309
+}

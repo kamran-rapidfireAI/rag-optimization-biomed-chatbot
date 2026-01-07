@@ -50,7 +50,7 @@ todos:
     content: "Phase 8: Demo enhancement + HuggingFace Spaces deployment"
     status: completed
     completed_date: 2026-01-07
-    notes: "Side-by-side comparison demo (Baseline vs Optimized), Gradio 6.0 API compliance (theme/css in launch()), HuggingFace Spaces files (requirements.txt, README.md with YAML frontmatter), scripts/build_demo_index.py for pre-building FAISS index, notebooks/02_failure_analysis.ipynb with 4 failure modes, comprehensive cost/latency report in README, full CLI command reference, 24 new tests for demo module"
+    notes: "Side-by-side comparison demo (Baseline vs Optimized), Gradio 6.0 API compliance (theme/css in launch()), 3-layer design token architecture (ColorPrimitives → SemanticTokens → ComponentTokens in demo/theme.py), HuggingFace Spaces files (requirements.txt, README.md with YAML frontmatter and deployment guide), scripts/build_demo_index.py for pre-building FAISS index, notebooks/02_failure_analysis.ipynb with 4 failure modes, comprehensive cost/latency report in README, full CLI command reference, 24 new tests for demo module"
 ---
 
 # BioRAG Bench Implementation Plan
@@ -664,8 +664,9 @@ flowchart TB
 
 ### Key Files
 
-- `demo/app.py` (enhanced)
-- `demo/requirements.txt`, `demo/README.md`
+- `demo/app.py` (enhanced with side-by-side comparison)
+- `demo/theme.py` (3-layer design token architecture)
+- `demo/requirements.txt`, `demo/README.md` (deployment guide)
 - `notebooks/02_failure_analysis.ipynb`
 - `README.md` (updated)
 

@@ -76,9 +76,10 @@ def build_demo_index(
     # Step 1: Load PubMedQA data
     print("📥 Loading PubMedQA data...")
     loader = PubMedQALoader()
-    questions = loader.load_questions(split="pqa_labeled", limit=num_documents)
+    all_questions = loader.load(split="pqa_labeled")
+    questions = all_questions[:num_documents]
     
-    print(f"   Loaded {len(questions)} questions")
+    print(f"   Loaded {len(questions)} questions (from {len(all_questions)} total)")
 
     # Step 2: Extract documents from contexts
     print("📄 Extracting documents from contexts...")
@@ -153,7 +154,7 @@ def build_demo_index(
     store = FAISSStore(embedder=embedder, metric="cosine")
     store.add_chunks(all_chunks, show_progress=True)
     
-    print(f"   Index size: {store.index.ntotal} vectors")
+    print(f"   Index size: {store._index.ntotal} vectors")
 
     # Step 6: Save index
     print(f"💾 Saving index to {output_dir}...")
@@ -167,7 +168,7 @@ def build_demo_index(
         "chunk_overlap": chunk_overlap,
         "embeddings_provider": embeddings_provider,
         "embeddings_model": embeddings_model,
-        "index_size": store.index.ntotal,
+        "index_size": store._index.ntotal,
     }
     
     with open(output_dir / "config.json", "w") as f:
@@ -177,7 +178,7 @@ def build_demo_index(
     print("✅ Demo index built successfully!")
     print(f"   Documents: {len(documents)}")
     print(f"   Chunks: {len(all_chunks)}")
-    print(f"   Index vectors: {store.index.ntotal}")
+    print(f"   Index vectors: {store._index.ntotal}")
     print(f"   Output: {output_dir}")
 
 
