@@ -1,17 +1,49 @@
-# BioRAG Bench Demo - Minimal dependencies for HuggingFace Spaces
-gradio>=4.0.0
-fastapi>=0.100.0
-uvicorn>=0.22.0
-pydantic>=2.0.0
+# BioRAG Bench Demo - Dependencies for HuggingFace Spaces
+# 
+# This file contains all dependencies needed to run the demo on HuggingFace Spaces.
+# For local development, install the main package instead: pip install -e .
+
+# Core framework
+gradio>=4.19.0
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Data validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Configuration
 python-dotenv>=1.0.0
+pyyaml>=6.0.1
+omegaconf>=2.3.0
 
-# Core dependencies (installed via main package)
-# torch
-# faiss-cpu
-# sentence-transformers
-# openai
+# OpenAI API
+openai>=1.12.0
+tiktoken>=0.5.0
 
+# LangChain
+langchain>=0.1.0
+langchain-community>=0.0.20
+langchain-openai>=0.0.5
 
+# Vector store
+faiss-cpu>=1.7.4
 
+# ML/Deep Learning
+torch>=2.0.0
+transformers>=4.36.0
+sentence-transformers>=2.3.0
 
+# Text processing
+nltk>=3.8.1
 
+# Metrics
+rouge-score>=0.1.2
+
+# CLI
+typer>=0.9.0
+rich>=13.7.0
+
+# Utilities
+httpx>=0.26.0
+tenacity>=8.2.0

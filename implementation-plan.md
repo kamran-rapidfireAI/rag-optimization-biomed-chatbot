@@ -1,10 +1,10 @@
 ---
 name: BioRAG Bench Implementation
 overview: A phased implementation plan to build the BioRAG Bench pipeline, prioritizing an end-to-end demo first, then adding evaluation and optimization capabilities. Each phase is testable with unit and/or integration tests.
-last_updated: 2026-01-05
+last_updated: 2026-01-07
 implemented_by: AI Assistant (Claude)
-test_count: 383
-test_coverage: 73.55%
+test_count: 407
+test_coverage: 74.50%
 todos:
   - id: phase-0
     content: "Phase 0: Project foundation - structure, dependencies, testing setup"
@@ -48,7 +48,9 @@ todos:
     notes: "RapidFire AI integration following official tutorial patterns (RFLangChainRagSpec, RFOpenAIAPIModelConfig with rag param, preprocess/postprocess/compute_metrics/accumulate_metrics callbacks, RFGridSearch), ExperimentRunner, ArtifactManager, SweepRunner, rapidfire_adapter.py with BioRAGRapidFireAdapter, sweep configs, CLI sweep command"
   - id: phase-8
     content: "Phase 8: Demo enhancement + HuggingFace Spaces deployment"
-    status: pending
+    status: completed
+    completed_date: 2026-01-07
+    notes: "Side-by-side comparison demo (Baseline vs Optimized), Gradio 6.0 API compliance (theme/css in launch()), HuggingFace Spaces files (requirements.txt, README.md with YAML frontmatter), scripts/build_demo_index.py for pre-building FAISS index, notebooks/02_failure_analysis.ipynb with 4 failure modes, comprehensive cost/latency report in README, full CLI command reference, 24 new tests for demo module"
 ---
 
 # BioRAG Bench Implementation Plan
