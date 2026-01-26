@@ -215,6 +215,27 @@ class ComponentTokens:
     def input_placeholder(self) -> str:
         return self.semantic.text_muted
     
+    # --- Dropdowns ---
+    @property
+    def dropdown_bg(self) -> str:
+        return self.semantic.bg_elevated
+    
+    @property
+    def dropdown_text(self) -> str:
+        return self.semantic.text_primary
+    
+    @property
+    def dropdown_option_bg(self) -> str:
+        return self.semantic.bg_elevated
+    
+    @property
+    def dropdown_option_bg_hover(self) -> str:
+        return self.semantic.primitives.gray_700
+    
+    @property
+    def dropdown_option_text(self) -> str:
+        return self.semantic.text_primary
+    
     # --- Tables ---
     @property
     def table_header_bg(self) -> str:
@@ -241,6 +262,15 @@ class ComponentTokens:
     def code_text(self) -> str:
         return self.semantic.accent_primary
     
+    # --- Code Blocks (multi-line) ---
+    @property
+    def codeblock_bg(self) -> str:
+        return self.semantic.bg_elevated
+    
+    @property
+    def codeblock_text(self) -> str:
+        return self.semantic.text_primary  # High contrast light text
+    
     # --- Accordions ---
     @property
     def accordion_header_text(self) -> str:
@@ -256,8 +286,20 @@ class ComponentTokens:
         return self.semantic.text_secondary
     
     @property
+    def tab_text_hover(self) -> str:
+        return self.semantic.text_primary
+    
+    @property
+    def tab_bg_hover(self) -> str:
+        return self.semantic.bg_elevated
+    
+    @property
     def tab_text_active(self) -> str:
         return self.semantic.accent_primary
+    
+    @property
+    def tab_bg_active(self) -> str:
+        return self.semantic.bg_surface
     
     # --- Pipeline Headers ---
     @property
@@ -347,13 +389,23 @@ class BioRAGTheme:
             --input-border: {self.components.input_border};
             --input-text: {self.components.input_text};
             --input-placeholder: {self.components.input_placeholder};
+            --dropdown-bg: {self.components.dropdown_bg};
+            --dropdown-text: {self.components.dropdown_text};
+            --dropdown-option-bg: {self.components.dropdown_option_bg};
+            --dropdown-option-bg-hover: {self.components.dropdown_option_bg_hover};
+            --dropdown-option-text: {self.components.dropdown_option_text};
             --table-header-bg: {self.components.table_header_bg};
             --table-cell-bg: {self.components.table_cell_bg};
             --table-text: {self.components.table_text};
             --code-bg: {self.components.code_bg};
             --code-text: {self.components.code_text};
+            --codeblock-bg: {self.components.codeblock_bg};
+            --codeblock-text: {self.components.codeblock_text};
             --tab-text: {self.components.tab_text};
+            --tab-text-hover: {self.components.tab_text_hover};
+            --tab-bg-hover: {self.components.tab_bg_hover};
             --tab-text-active: {self.components.tab_text_active};
+            --tab-bg-active: {self.components.tab_bg_active};
             
             /* === TYPOGRAPHY === */
             --font-family: {self.font_family};
@@ -397,14 +449,64 @@ class BioRAGTheme:
         input, textarea, select,
         .gr-textbox input,
         .gr-textbox textarea {
-            background-color: var(--input-bg);
-            border-color: var(--input-border);
-            color: var(--input-text);
+            background-color: var(--input-bg) !important;
+            border-color: var(--input-border) !important;
+            color: var(--input-text) !important;
         }
         
         input::placeholder,
         textarea::placeholder {
             color: var(--input-placeholder);
+        }
+        
+        /* --- Dropdowns --- */
+        select,
+        .gr-dropdown,
+        [data-testid="dropdown"],
+        .svelte-select,
+        .choices,
+        .choices__inner,
+        .choices__list--dropdown {
+            background-color: var(--dropdown-bg) !important;
+            color: var(--dropdown-text) !important;
+            border-color: var(--input-border) !important;
+        }
+        
+        select option,
+        .gr-dropdown option,
+        .choices__item,
+        .choices__list--dropdown .choices__item,
+        [data-testid="dropdown"] li,
+        .svelte-select .item,
+        ul[role="listbox"] li,
+        div[role="listbox"] > div,
+        div[role="option"] {
+            background-color: var(--dropdown-option-bg) !important;
+            color: var(--dropdown-option-text) !important;
+            padding: 8px 12px !important;
+        }
+        
+        select option:hover,
+        select option:focus,
+        .gr-dropdown option:hover,
+        .choices__item--selectable.is-highlighted,
+        .choices__list--dropdown .choices__item:hover,
+        [data-testid="dropdown"] li:hover,
+        ul[role="listbox"] li:hover,
+        ul[role="listbox"] li:focus,
+        ul[role="listbox"] li[aria-selected="true"],
+        div[role="option"]:hover,
+        div[role="option"]:focus,
+        div[role="option"][aria-selected="true"] {
+            background-color: var(--dropdown-option-bg-hover) !important;
+            color: var(--text-inverse) !important;
+        }
+        
+        /* Dropdown arrow/icon fix */
+        .gr-dropdown svg,
+        select + svg,
+        .choices::after {
+            color: var(--text-secondary) !important;
         }
         
         /* --- Buttons --- */
@@ -435,7 +537,7 @@ class BioRAGTheme:
             padding: 8px 12px;
         }
         
-        /* --- Code --- */
+        /* --- Inline Code --- */
         code, .gr-markdown code {
             font-family: var(--font-family-mono);
             background: var(--code-bg);
@@ -445,15 +547,52 @@ class BioRAGTheme:
             font-size: 0.9em;
         }
         
+        /* --- Code Blocks (multi-line) --- */
+        pre, .gr-markdown pre {
+            background: var(--codeblock-bg) !important;
+            border: 1px solid var(--border-default) !important;
+            border-radius: var(--radius-md) !important;
+            padding: 16px !important;
+            overflow-x: auto;
+        }
+        
+        pre code, .gr-markdown pre code {
+            background: transparent !important;
+            color: var(--codeblock-text) !important;
+            padding: 0 !important;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+        
         /* --- Tabs --- */
         .tab-nav button,
-        [role="tab"] {
-            color: var(--tab-text);
+        [role="tab"],
+        button[role="tab"] {
+            color: var(--tab-text) !important;
+            background: transparent !important;
+            transition: all 0.15s ease !important;
+        }
+        
+        .tab-nav button:hover,
+        [role="tab"]:hover,
+        button[role="tab"]:hover {
+            color: var(--tab-text-hover) !important;
+            background: var(--tab-bg-hover) !important;
         }
         
         .tab-nav button.selected,
-        [role="tab"][aria-selected="true"] {
-            color: var(--tab-text-active);
+        [role="tab"][aria-selected="true"],
+        button[role="tab"][aria-selected="true"] {
+            color: var(--tab-text-active) !important;
+            background: var(--tab-bg-active) !important;
+            border-bottom-color: var(--accent-primary) !important;
+        }
+        
+        .tab-nav button.selected:hover,
+        [role="tab"][aria-selected="true"]:hover,
+        button[role="tab"][aria-selected="true"]:hover {
+            color: var(--tab-text-active) !important;
+            background: var(--tab-bg-active) !important;
         }
         
         /* --- Accordions --- */
@@ -682,4 +821,8 @@ class BioRAGTheme:
 
 # Singleton instance for easy import
 theme = BioRAGTheme()
+
+
+
+
 
