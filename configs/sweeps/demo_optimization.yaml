@@ -1,0 +1,45 @@
+# Demo Optimization Sweep
+# Find the empirically best configuration for the demo's "Optimized" pipeline
+
+name: demo_optimization
+description: "Sweep to find optimal config for demo comparison (Baseline vs Optimized)"
+
+# Use base configuration
+base_config: configs/base.yaml
+
+# Parameters to sweep - focused on key differences
+parameters:
+  # Retrieval mode: similarity (baseline) vs mmr (potentially optimized)
+  - path: retrieval.mode
+    range:
+      type: choice
+      values: [similarity, mmr]
+
+  # Number of documents to retrieve
+  - path: retrieval.k
+    range:
+      type: grid
+      values: [5, 10]
+
+  # Reranking enabled/disabled (key differentiator)
+  - path: rerank.enabled
+    range:
+      type: choice
+      values: [true, false]
+
+  # Final documents after reranking
+  - path: rerank.final_k
+    range:
+      type: grid
+      values: [5, 8]
+
+# Evaluation settings - use PubMedQA for faster evaluation
+dataset: pubmedqa
+split: train
+max_questions: 25
+seed: 42
+
+# Execution settings
+parallel: true
+max_parallel: 4
+save_artifacts: true

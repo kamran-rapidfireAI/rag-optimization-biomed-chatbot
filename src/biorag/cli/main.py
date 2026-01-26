@@ -188,13 +188,22 @@ def build_corpus(
     console.print("[bold blue]Building corpus...[/bold blue]")
 
     # Collect gold PMIDs from both datasets
+    gold_pmids: set[str] = set()
+    
     console.print("Collecting gold PMIDs from BioASQ...")
-    bioasq_loader = BioASQLoader(source="huggingface", cache_dir=config.paths.cache_dir)
-    gold_pmids = bioasq_loader.get_gold_pmids()
+    try:
+        bioasq_loader = BioASQLoader(source="huggingface", cache_dir=config.paths.cache_dir)
+        bioasq_pmids = bioasq_loader.get_gold_pmids()
+        gold_pmids.update(bioasq_pmids)
+        console.print(f"[green]  Found {len(bioasq_pmids)} PMIDs from BioASQ[/green]")
+    except Exception as e:
+        console.print(f"[yellow]  Warning: Failed to load BioASQ ({e}). Continuing with PubMedQA only.[/yellow]")
 
     console.print("Collecting PMIDs from PubMedQA...")
     pubmedqa_loader = PubMedQALoader(source="huggingface", cache_dir=config.paths.cache_dir)
-    gold_pmids.update(pubmedqa_loader.get_pmids())
+    pubmedqa_pmids = pubmedqa_loader.get_pmids()
+    gold_pmids.update(pubmedqa_pmids)
+    console.print(f"[green]  Found {len(pubmedqa_pmids)} PMIDs from PubMedQA[/green]")
 
     console.print(f"[green]Total gold PMIDs: {len(gold_pmids)}[/green]")
 
@@ -217,9 +226,75 @@ def build_corpus(
 def index_faiss(
     config_path: Path | None = typer.Option(None, "--config", "-c"),
     corpus_path: Path | None = typer.Option(None, "--corpus", help="Path to corpus.jsonl"),
+    output_path: Path | None = typer.Option(None, "--output", "-o", help="Output directory for index"),
+    chunk_size: int | None = typer.Option(None, "--chunk-size", help="Chunk size in characters"),
+    chunk_overlap: int | None = typer.Option(None, "--chunk-overlap", help="Chunk overlap in characters"),
 ) -> None:
     """Build FAISS index from corpus."""
-    console.print("[yellow]Command will be implemented in Phase 2[/yellow]")
+    from biorag.chunking.recursive import RecursiveChunker
+    from biorag.data.corpus_builder import CorpusBuilder
+    from biorag.embeddings.openai import OpenAIEmbedder
+    from biorag.indexing.faiss_store import FAISSStore
+
+    config = load_config(config_path)
+    setup_logging(level=config.logging.level, json_format=config.logging.json_format)
+
+    # Use config values or overrides
+    _chunk_size = chunk_size or config.chunking.chunk_size
+    _chunk_overlap = chunk_overlap or config.chunking.chunk_overlap
+
+    # Determine paths
+    _corpus_path = corpus_path or config.paths.data_dir / "processed" / "corpus" / "corpus.jsonl"
+    _output_path = output_path or config.paths.data_dir / "processed" / "index"
+
+    if not _corpus_path.exists():
+        console.print(f"[red]Corpus file not found: {_corpus_path}[/red]")
+        console.print("Run 'biorag build-corpus' first.")
+        raise typer.Exit(1)
+
+    console.print(f"[bold blue]Building FAISS index from {_corpus_path}[/bold blue]")
+    console.print(f"  Chunk size: {_chunk_size}, overlap: {_chunk_overlap}")
+
+    # Initialize components
+    console.print("Initializing embedder...")
+    embedder = OpenAIEmbedder(
+        model=config.embeddings.model,
+        batch_size=config.embeddings.batch_size,
+    )
+
+    console.print("Initializing chunker...")
+    chunker = RecursiveChunker(
+        chunk_size=_chunk_size,
+        chunk_overlap=_chunk_overlap,
+    )
+
+    console.print("Creating FAISS store...")
+    store = FAISSStore(embedder=embedder)
+
+    # Load and chunk corpus
+    console.print("Loading and chunking corpus...")
+    all_chunks = []
+    doc_count = 0
+    for doc in CorpusBuilder.load_corpus(_corpus_path):
+        # Combine title and abstract for chunking
+        text = f"{doc.title}\n\n{doc.abstract}" if doc.title else doc.abstract
+        chunks = chunker.chunk_text(text, metadata={"pmid": doc.pmid})
+        all_chunks.extend(chunks)
+        doc_count += 1
+        if doc_count % 1000 == 0:
+            console.print(f"  Processed {doc_count} documents, {len(all_chunks)} chunks")
+
+    console.print(f"[green]Total: {doc_count} documents, {len(all_chunks)} chunks[/green]")
+
+    # Add chunks to index
+    console.print("Embedding chunks and building index (this may take a while)...")
+    store.add_chunks(all_chunks, batch_size=config.embeddings.batch_size)
+
+    # Save index
+    console.print(f"Saving index to {_output_path}...")
+    store.save(_output_path)
+
+    console.print(f"[green]✓ FAISS index built: {store.num_chunks} vectors[/green]")
 
 
 @app.command()

@@ -6,12 +6,15 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
 
 from datasets import load_dataset
 
 from biorag.schemas.corpus import CorpusDocument, CorpusManifest
 from biorag.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from biorag.schemas.evaluation import PubMedQAQuestion
 
 logger = get_logger(__name__)
 
@@ -97,21 +100,18 @@ class CorpusBuilder:
         gold_docs_found: set[str] = set()
         distractor_docs: list[CorpusDocument] = []
 
+        # First try to load from PubMedQA contexts (most reliable)
         try:
-            # Try to load the dataset
-            logger.info(f"Loading dataset: {dataset_name}")
+            logger.info("Building corpus from PubMedQA contexts")
+            pubmedqa_docs = self._load_from_pubmedqa()
             
-            # For demonstration, we'll use a simpler approach
-            # In production, you'd stream the full PubMed dataset
-            dataset = self._load_pubmed_sample(dataset_name, dataset_revision)
-
-            for doc in dataset:
+            for doc in pubmedqa_docs:
                 pmid = doc.pmid
-
+                
                 # Skip if already processed
                 if pmid in existing_pmids:
                     continue
-
+                    
                 # Check if gold document
                 if pmid in self.gold_pmids:
                     doc.is_gold = True
@@ -120,9 +120,39 @@ class CorpusBuilder:
                 else:
                     # Candidate for distractor
                     distractor_docs.append(doc)
-
+                    
+            logger.info(f"Loaded {len(documents)} gold docs and {len(distractor_docs)} distractor candidates from PubMedQA")
+            
         except Exception as e:
-            logger.warning(f"Error loading dataset: {e}")
+            logger.warning(f"Error loading from PubMedQA: {e}")
+            
+        # If we don't have enough documents, try ncbi/pubmed dataset
+        if len(documents) < len(self.gold_pmids) // 2:
+            try:
+                logger.info(f"Loading additional documents from {dataset_name}")
+                dataset = self._load_pubmed_sample(dataset_name, dataset_revision)
+
+                for doc in dataset:
+                    pmid = doc.pmid
+
+                    # Skip if already processed
+                    if pmid in existing_pmids or pmid in gold_docs_found:
+                        continue
+
+                    # Check if gold document
+                    if pmid in self.gold_pmids:
+                        doc.is_gold = True
+                        documents.append(doc)
+                        gold_docs_found.add(pmid)
+                    else:
+                        # Candidate for distractor
+                        distractor_docs.append(doc)
+
+            except Exception as e:
+                logger.warning(f"Error loading from {dataset_name}: {e}")
+                
+        # If still no documents, fall back to mock data
+        if len(documents) == 0 and len(distractor_docs) == 0:
             logger.info("Falling back to mock data for demonstration")
             documents, distractor_docs, gold_docs_found = self._create_mock_corpus()
 
@@ -170,6 +200,71 @@ class CorpusBuilder:
         logger.info(f"Corpus built successfully: {manifest_path}")
         return manifest
 
+    def _load_from_pubmedqa(self) -> Iterator[CorpusDocument]:
+        """Load corpus documents from PubMedQA contexts (labeled + unlabeled for distractors)."""
+        from biorag.data.pubmedqa_loader import PubMedQALoader
+        
+        seen_pmids: set[str] = set()
+        
+        # First load from labeled split (gold documents)
+        loader = PubMedQALoader(source="huggingface", cache_dir=self.cache_dir, config="pqa_labeled")
+        try:
+            questions = loader.load(split="train")
+            for q in questions:
+                if q.pmid in seen_pmids:
+                    continue
+                seen_pmids.add(q.pmid)
+                    
+                # Combine context into abstract
+                if isinstance(q.context, list):
+                    abstract = " ".join(str(c) for c in q.context if c)
+                else:
+                    abstract = str(q.context) if q.context else ""
+                    
+                if len(abstract) < self.min_abstract_length:
+                    continue
+                    
+                yield CorpusDocument(
+                    pmid=q.pmid,
+                    title=q.question_text[:200] if q.question_text else "",
+                    abstract=abstract,
+                    source="pubmedqa",
+                )
+        except Exception as e:
+            logger.warning(f"Error loading pqa_labeled: {e}")
+            
+        # Then load from unlabeled split (distractor candidates)
+        try:
+            unlabeled_loader = PubMedQALoader(
+                source="huggingface", 
+                cache_dir=self.cache_dir, 
+                config="pqa_unlabeled"
+            )
+            unlabeled_questions = unlabeled_loader.load(split="train")
+            logger.info(f"Loading {len(unlabeled_questions)} unlabeled PubMedQA documents as distractors")
+            
+            for q in unlabeled_questions:
+                if q.pmid in seen_pmids:
+                    continue
+                seen_pmids.add(q.pmid)
+                    
+                if isinstance(q.context, list):
+                    abstract = " ".join(str(c) for c in q.context if c)
+                else:
+                    abstract = str(q.context) if q.context else ""
+                    
+                if len(abstract) < self.min_abstract_length:
+                    continue
+                    
+                yield CorpusDocument(
+                    pmid=q.pmid,
+                    title=q.question_text[:200] if q.question_text else "",
+                    abstract=abstract,
+                    source="pubmedqa",
+                )
+        except Exception as e:
+            logger.warning(f"Could not load pqa_unlabeled for distractors: {e}")
+    
     def _load_pubmed_sample(
         self, dataset_name: str, revision: str | None  # noqa: ARG002
     ) -> Iterator[CorpusDocument]:

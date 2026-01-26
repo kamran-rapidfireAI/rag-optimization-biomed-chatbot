@@ -1,0 +1,47 @@
+# PubMedQA Optimization Sweep
+# Comprehensive sweep for optimizing RAG on PubMedQA
+
+name: pubmedqa_optimization
+description: "Optimize retrieval and reranking parameters for PubMedQA"
+
+# Use base configuration
+base_config: configs/base.yaml
+
+# Parameters to sweep
+parameters:
+  - path: retrieval.mode
+    range:
+      type: choice
+      values: [similarity, mmr]
+
+  - path: retrieval.k
+    range:
+      type: grid
+      values: [5, 10, 15]
+
+  - path: retrieval.lambda_mult
+    range:
+      type: grid
+      values: [0.3, 0.5, 0.7]
+
+  - path: rerank.enabled
+    range:
+      type: choice
+      values: [true, false]
+
+  - path: rerank.final_k
+    range:
+      type: grid
+      values: [5, 8]
+
+# Evaluation settings
+dataset: pubmedqa
+split: train
+max_questions: 50
+seed: 42
+
+# Execution settings
+parallel: true
+max_parallel: 4
+save_artifacts: true
+
