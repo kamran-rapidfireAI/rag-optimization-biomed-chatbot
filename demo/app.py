@@ -300,6 +300,117 @@ class BioRAGDemo:
 
         return answer_text, citations_text, chunks_text, latency_text, config_text
 
+    def _generate_comparison_score(self, baseline_result: Any, optimized_result: Any) -> str:
+        """Generate an HTML comparison score summary between baseline and optimized results."""
+        if baseline_result is None and optimized_result is None:
+            return ""
+        
+        # Calculate scores for comparison
+        baseline_score = 0
+        optimized_score = 0
+        metrics = []
+        
+        # Metric 1: Number of evidence chunks retrieved
+        if baseline_result and optimized_result:
+            b_chunks = len(baseline_result.retrieved_chunks)
+            o_chunks = len(optimized_result.retrieved_chunks)
+            metrics.append(("Evidence Chunks", b_chunks, o_chunks, "more is better"))
+            if o_chunks > b_chunks:
+                optimized_score += 1
+            elif b_chunks > o_chunks:
+                baseline_score += 1
+        
+        # Metric 2: Abstention (not abstaining is usually better)
+        if baseline_result and optimized_result:
+            b_abstained = baseline_result.answer.abstained if baseline_result.answer else True
+            o_abstained = optimized_result.answer.abstained if optimized_result.answer else True
+            b_val = "No" if not b_abstained else "Yes"
+            o_val = "No" if not o_abstained else "Yes"
+            metrics.append(("Provided Answer", b_val, o_val, ""))
+            if not o_abstained and b_abstained:
+                optimized_score += 2  # Weight this more
+            elif not b_abstained and o_abstained:
+                baseline_score += 2
+        
+        # Metric 3: Number of citations
+        if baseline_result and optimized_result:
+            b_cits = len(baseline_result.answer.citations) if baseline_result.answer else 0
+            o_cits = len(optimized_result.answer.citations) if optimized_result.answer else 0
+            metrics.append(("Citations", b_cits, o_cits, "more is better"))
+            if o_cits > b_cits:
+                optimized_score += 1
+            elif b_cits > o_cits:
+                baseline_score += 1
+        
+        # Metric 4: Average retrieval score
+        if baseline_result and optimized_result:
+            b_scores = [c.score for c in baseline_result.retrieved_chunks[:5] if c.score]
+            o_scores = [c.score for c in optimized_result.retrieved_chunks[:5] if c.score]
+            b_avg = sum(b_scores) / len(b_scores) if b_scores else 0
+            o_avg = sum(o_scores) / len(o_scores) if o_scores else 0
+            metrics.append(("Avg Relevance", f"{b_avg:.2f}", f"{o_avg:.2f}", "higher is better"))
+            if o_avg > b_avg:
+                optimized_score += 1
+            elif b_avg > o_avg:
+                baseline_score += 1
+        
+        # Determine winner
+        if optimized_score > baseline_score:
+            winner = "optimized"
+            winner_text = "🟢 Optimized Wins"
+            winner_color = "#3fb950"
+        elif baseline_score > optimized_score:
+            winner = "baseline"
+            winner_text = "🔵 Baseline Wins"
+            winner_color = "#58a6ff"
+        else:
+            winner = "tie"
+            winner_text = "🤝 Tie"
+            winner_color = "#8b949e"
+        
+        # Generate HTML
+        metrics_html = ""
+        for name, b_val, o_val, hint in metrics:
+            b_style = "color: #3fb950;" if winner == "baseline" else ""
+            o_style = "color: #3fb950;" if winner == "optimized" else ""
+            metrics_html += f"""
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #21262d;">
+                <span style="color: #8b949e; flex: 1;">{name}</span>
+                <span style="flex: 1; text-align: center; color: #58a6ff;">{b_val}</span>
+                <span style="flex: 1; text-align: center; color: #3fb950;">{o_val}</span>
+            </div>
+            """
+        
+        return f"""
+        <div style="background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+                    border: 1px solid #30363d;
+                    border-radius: 12px;
+                    padding: 16px 20px;
+                    margin: 16px 0;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span style="font-size: 14px; color: #c9d1d9; font-weight: 600;">📊 Query Comparison</span>
+                <span style="font-size: 16px; font-weight: 700; color: {winner_color}; 
+                             padding: 4px 12px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                    {winner_text}
+                </span>
+            </div>
+            <div style="font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #30363d; font-weight: 600;">
+                    <span style="flex: 1; color: #c9d1d9;">Metric</span>
+                    <span style="flex: 1; text-align: center; color: #58a6ff;">🔵 Baseline</span>
+                    <span style="flex: 1; text-align: center; color: #3fb950;">🟢 Optimized</span>
+                </div>
+                {metrics_html}
+            </div>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #30363d; text-align: center;">
+                <span style="font-size: 12px; color: #6e7681;">
+                    Score: Baseline {baseline_score} vs Optimized {optimized_score}
+                </span>
+            </div>
+        </div>
+        """
+
     def answer_question_single(
         self,
         question: str,
@@ -327,19 +438,23 @@ class BioRAGDemo:
         self,
         question: str,
         question_type: str,
-    ) -> tuple[str, str, str, str, str, str, str, str, str, str]:
+    ) -> tuple[str, str, str, str, str, str, str, str, str, str, str]:
         """
         Answer a biomedical question using both pipelines for comparison.
 
         Returns:
-            Tuple of (baseline_answer, baseline_citations, baseline_chunks, baseline_latency, baseline_config,
+            Tuple of (comparison_score,
+                     baseline_answer, baseline_citations, baseline_chunks, baseline_latency, baseline_config,
                      optimized_answer, optimized_citations, optimized_chunks, optimized_latency, optimized_config)
         """
         if not question.strip():
             empty = "Please enter a question."
-            return (empty, "", "", "", "", empty, "", "", "", "")
+            return ("", empty, "", "", "", "", empty, "", "", "", "")
 
         q_type = None if question_type == "auto" else question_type
+
+        baseline_result = None
+        optimized_result = None
 
         # Run baseline pipeline
         try:
@@ -355,7 +470,10 @@ class BioRAGDemo:
         except Exception as e:
             optimized_outputs = (f"⚠️ **Error**: {e}", "", "", "", "")
 
-        return (*baseline_outputs, *optimized_outputs)
+        # Generate comparison score HTML
+        comparison_html = self._generate_comparison_score(baseline_result, optimized_result)
+
+        return (comparison_html, *baseline_outputs, *optimized_outputs)
 
     def get_theme(self) -> gr.themes.Base:
         """Get the custom theme for the demo using design token architecture."""
@@ -388,10 +506,44 @@ class BioRAGDemo:
                 
                 # Tab 1: Side-by-side Comparison
                 with gr.TabItem("⚖️ Side-by-Side Comparison", id="comparison"):
+                    # Benchmark performance banner
                     gr.HTML("""
-                    <div style="text-align: center; padding: 16px; color: #8b949e; margin-bottom: 16px;">
-                        <p style="margin: 0;">Compare <strong style="color: #58a6ff;">Baseline</strong> (simple retrieval) 
-                        vs <strong style="color: #3fb950;">Optimized</strong> (MMR + reranking) configurations</p>
+                    <div style="background: linear-gradient(135deg, #0d1117 0%, #1a2332 100%);
+                                border: 1px solid #30363d;
+                                border-radius: 12px;
+                                padding: 20px 24px;
+                                margin-bottom: 20px;
+                                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 40px; flex-wrap: wrap;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">📊 Benchmark Results (PubMedQA)</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 30px;">
+                                <div style="text-align: center; padding: 12px 20px; background: rgba(88, 166, 255, 0.1); border-radius: 8px; border: 1px solid rgba(88, 166, 255, 0.3);">
+                                    <div style="font-size: 11px; color: #58a6ff; text-transform: uppercase; letter-spacing: 1px;">🔵 Baseline</div>
+                                    <div style="font-size: 28px; font-weight: 700; color: #58a6ff;">42%</div>
+                                    <div style="font-size: 11px; color: #8b949e;">Accuracy</div>
+                                </div>
+                                <div style="font-size: 24px; color: #3fb950;">→</div>
+                                <div style="text-align: center; padding: 12px 20px; background: rgba(63, 185, 80, 0.1); border-radius: 8px; border: 1px solid rgba(63, 185, 80, 0.3);">
+                                    <div style="font-size: 11px; color: #3fb950; text-transform: uppercase; letter-spacing: 1px;">🟢 Optimized</div>
+                                    <div style="font-size: 28px; font-weight: 700; color: #3fb950;">54%</div>
+                                    <div style="font-size: 11px; color: #8b949e;">Accuracy</div>
+                                </div>
+                                <div style="text-align: center; padding: 12px 20px; background: rgba(238, 184, 104, 0.1); border-radius: 8px; border: 1px solid rgba(238, 184, 104, 0.3);">
+                                    <div style="font-size: 11px; color: #eeb868; text-transform: uppercase; letter-spacing: 1px;">📈 Improvement</div>
+                                    <div style="font-size: 28px; font-weight: 700; color: #eeb868;">+28%</div>
+                                    <div style="font-size: 11px; color: #8b949e;">Relative</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    """)
+                    
+                    gr.HTML("""
+                    <div style="text-align: center; padding: 8px; color: #8b949e; margin-bottom: 16px;">
+                        <p style="margin: 0;">Compare <strong style="color: #58a6ff;">Baseline</strong> (similarity, k=5) 
+                        vs <strong style="color: #3fb950;">Optimized</strong> (MMR, k=15) configurations</p>
                     </div>
                     """)
                     
@@ -427,6 +579,12 @@ class BioRAGDemo:
                         label="💡 Example Questions",
                     )
 
+                    # Dynamic comparison score (updated after each query)
+                    comparison_score = gr.HTML(
+                        value="",
+                        visible=True,
+                    )
+                    
                     # Side-by-side results
                     with gr.Row(equal_height=True):
                         # Baseline column
@@ -480,6 +638,7 @@ class BioRAGDemo:
                         fn=self.answer_question_comparison,
                         inputs=[comparison_question, comparison_type],
                         outputs=[
+                            comparison_score,
                             baseline_answer, baseline_citations, baseline_chunks, 
                             baseline_latency, baseline_config,
                             optimized_answer, optimized_citations, optimized_chunks,
@@ -491,6 +650,7 @@ class BioRAGDemo:
                         fn=self.answer_question_comparison,
                         inputs=[comparison_question, comparison_type],
                         outputs=[
+                            comparison_score,
                             baseline_answer, baseline_citations, baseline_chunks,
                             baseline_latency, baseline_config,
                             optimized_answer, optimized_citations, optimized_chunks,
